@@ -1,0 +1,59 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "## Juniper SRX workbook\r\n---\r\n\r\nThis workbook is intended to visualise data for Juniper SRX monitoring"
+      },
+      "name": "text - 1"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "JuniperSRX\r\n| where TimeGenerated >= ago(30d)\r\n| summarize count() by Facility\r\n| render barchart\r\n\r\n",
+        "size": 0,
+        "title": "Juniper SRX Summary",
+        "timeContext": {
+          "durationMs": 2592000000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "query - 2"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "## Top 10 Users with Failed Passwords\r\n\r\nJuniperSRX\r\n| where EventType == \\\"sshd\\\"\r\n| where EventName == \\\"Failed password\\\"\r\n| summarize count() by UserName\r\n| top 10 by count",
+        "size": 0,
+        "title": "Top 10 Users with Failed Passwords",
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "Top 10 Users with Failed Passwords"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "JuniperSRX \r\n| where TimeGenerated >= (30d)\r\n| where EventType == \\\"RT_IDS\\\" \r\n| summarize count() by SrcIpAddr \r\n| top 10 by count_",
+        "size": 0,
+        "title": "Top 10 IDS Detections by Source IP Address",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "query - 3"
+    }
+  ],
+  "fallbackResourceIds": [
+    "/subscriptions/d8623464-232d-4a3e-9c63-f160ee7b572c/resourcegroups/sentinelsandboxwestus/providers/microsoft.operationalinsights/workspaces/psc5baqabfsr6"
+  ],
+  "fromTemplateId": "sentinel-UserWorkbook",
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
