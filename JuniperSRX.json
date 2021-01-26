@@ -51,9 +51,6 @@
       "name": "query - 3"
     }
   ],
-  "fallbackResourceIds": [
-    "/subscriptions/d8623464-232d-4a3e-9c63-f160ee7b572c/resourcegroups/sentinelsandboxwestus/providers/microsoft.operationalinsights/workspaces/psc5baqabfsr6"
-  ],
-  "fromTemplateId": "sentinel-UserWorkbook",
+  
   "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
 }
