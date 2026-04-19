@@ -1,0 +1,715 @@
+{
+  "version": "Notebook/1.0",
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json",
+  "styleSettings": {},
+  "defaultResourceIds": [],
+  "fallbackResourceIds": [],
+  "items": [
+
+    {
+      "type": 1,
+      "content": {
+        "json": "# University of Newcastle — Cybersecurity Posture Dashboard\n**Classification: TLP:AMBER — Internal use only**\n\n> **First-time setup:** Before using this workbook, run the queries in the **Setup & Validation** tab to confirm your Armis table names and column schema. The Armis connector may create tables as `ArmisAlerts_CL` / `ArmisDevices_CL` (legacy DCR connector) or `ArmisAlert` / `ArmisDevice` (CCP connector). The KQL in this workbook uses `union isfuzzy=true` to handle both, but you must verify that at least one variant is populating before troubleshooting queries.\n\n> **CISA KEV:** This workbook expects a Sentinel Watchlist named exactly `CISA-KEV` with `cveID` as the SearchKey. If the watchlist is absent, KEV-related tiles will show 0. See the Setup tab."
+      },
+      "name": "header-text"
+    },
+
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "param-timerange",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time Range",
+            "type": 4,
+            "isRequired": true,
+            "value": { "durationMs": 604800000 },
+            "typeSettings": {
+              "selectableValues": [
+                { "durationMs": 3600000 },
+                { "durationMs": 86400000 },
+                { "durationMs": 604800000 },
+                { "durationMs": 2592000000 }
+              ]
+            }
+          },
+          {
+            "id": "param-tab",
+            "version": "KqlParameterItem/1.0",
+            "name": "selectedTab",
+            "type": 1,
+            "isRequired": true,
+            "value": "overview",
+            "isHiddenWhenLocked": true
+          }
+        ]
+      },
+      "name": "parameters"
+    },
+
+    {
+      "type": 11,
+      "content": {
+        "version": "LinkItem/1.0",
+        "style": "tabs",
+        "links": [
+          { "id": "tab-link-overview",    "cellValue": "selectedTab", "linkTarget": "parameter", "linkLabel": "📊 Overview",         "subTarget": "overview",    "style": "link" },
+          { "id": "tab-link-devices",     "cellValue": "selectedTab", "linkTarget": "parameter", "linkLabel": "🖥️ Device Risk",       "subTarget": "devices",     "style": "link" },
+          { "id": "tab-link-vulns",       "cellValue": "selectedTab", "linkTarget": "parameter", "linkLabel": "🔴 Vulnerabilities",    "subTarget": "vulns",       "style": "link" },
+          { "id": "tab-link-alerts",      "cellValue": "selectedTab", "linkTarget": "parameter", "linkLabel": "🚨 Alerts & Incidents", "subTarget": "alerts",      "style": "link" },
+          { "id": "tab-link-trends",      "cellValue": "selectedTab", "linkTarget": "parameter", "linkLabel": "📈 Trends",             "subTarget": "trends",      "style": "link" },
+          { "id": "tab-link-setup",       "cellValue": "selectedTab", "linkTarget": "parameter", "linkLabel": "⚙️ Setup & Validation", "subTarget": "setup",       "style": "link" }
+        ]
+      },
+      "name": "tab-navigation"
+    },
+
+
+    {
+      "type": 12,
+      "content": {
+        "version": "GroupItem/1.0",
+        "items": [
+
+          {
+            "type": 1,
+            "content": { "json": "## Current Security Posture\nTiles below reflect the selected time range. Counts update in real time from Sentinel." },
+            "name": "overview-heading"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Open Critical + High alerts from Armis in the selected time window\nSecurityAlert\n| where TimeGenerated {TimeRange}\n| where ProviderName has_any (\"Armis\", \"armis\", \"ARMIS\")\n| where Severity in (\"Critical\", \"High\")\n| where Status !in (\"Resolved\", \"Closed\")\n| summarize ['Open Critical/High Alerts']=count()",
+              "size": 4,
+              "title": "Open Critical / High Alerts",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "tileSettings": {
+                "titleContent": { "columnMatch": "Open Critical/High Alerts", "formatter": 12, "formatOptions": { "palette": "redBright" } },
+                "showBorder": true
+              }
+            },
+            "customWidth": "20",
+            "name": "tile-open-alerts"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// New Sentinel incidents (P1 + P2) in selected time range\nSecurityIncident\n| where CreatedTime {TimeRange}\n| where Severity in (\"High\", \"Critical\")\n| where Status !in (\"Closed\", \"Resolved\")\n| summarize ['Open P1/P2 Incidents']=count()",
+              "size": 4,
+              "title": "Open P1 / P2 Incidents",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "tileSettings": {
+                "titleContent": { "columnMatch": "Open P1/P2 Incidents", "formatter": 12, "formatOptions": { "palette": "redBright" } },
+                "showBorder": true
+              }
+            },
+            "customWidth": "20",
+            "name": "tile-p1p2-incidents"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// CISA KEV matches — devices in Armis that have an unpatched CVE on the CISA KEV list\n// REQUIRES: Sentinel Watchlist named 'CISA-KEV' with SearchKey = cveID\n// REQUIRES: ArmisDevices_CL or ArmisDevice table with vulnerability data\nlet KEV = _GetWatchlist('CISA-KEV') | project cveID = SearchKey, dueDate = column_ifexists('dueDate', ''), knownRansomware = column_ifexists('knownRansomwareCampaignUse', '');\nunion isfuzzy=true\n    (ArmisDevices_CL | where TimeGenerated {TimeRange}\n     | extend deviceName = column_ifexists('name_s', column_ifexists('deviceName_s', 'Unknown'))\n     | extend vulnerabilities = column_ifexists('vulnerabilities_s', column_ifexists('cves_s', ''))\n     | project deviceName, vulnerabilities),\n    (ArmisDevice    | where TimeGenerated {TimeRange}\n     | extend vulnerabilities = tostring(column_ifexists('vulnerabilities', column_ifexists('cves', '')))\n     | project deviceName=name, vulnerabilities)\n| where isnotempty(vulnerabilities)\n| mv-expand cve = split(vulnerabilities, ',')\n| extend cveID = trim(' ', tostring(cve))\n| join kind=inner KEV on cveID\n| summarize ['KEV Matches (Unpatched)']=dcount(cveID)",
+              "size": 4,
+              "title": "CISA KEV Matches",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "tileSettings": {
+                "titleContent": { "columnMatch": "KEV Matches (Unpatched)", "formatter": 12, "formatOptions": { "palette": "orange" } },
+                "showBorder": true
+              }
+            },
+            "customWidth": "20",
+            "name": "tile-kev-matches"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Total devices seen by Armis in selected window\nunion isfuzzy=true\n    (ArmisDevices_CL | where TimeGenerated {TimeRange}),\n    (ArmisDevice     | where TimeGenerated {TimeRange})\n| summarize ['Devices Monitored']=dcount(column_ifexists('id_d', column_ifexists('id', 'unknown')))",
+              "size": 4,
+              "title": "Devices Monitored",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "tileSettings": {
+                "titleContent": { "columnMatch": "Devices Monitored", "formatter": 12, "formatOptions": { "palette": "blue" } },
+                "showBorder": true
+              }
+            },
+            "customWidth": "20",
+            "name": "tile-device-count"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Incident MTTR (mean time to resolve) in hours for closed incidents in selected window\nSecurityIncident\n| where ClosedTime {TimeRange}\n| where Status == \"Closed\"\n| where ProviderName has_any (\"Armis\", \"Azure Sentinel\", \"Microsoft Sentinel\")\n| extend MTTRHours = datetime_diff('minute', ClosedTime, CreatedTime) / 60.0\n| summarize ['Avg MTTR (hrs)']=round(avg(MTTRHours), 1)",
+              "size": 4,
+              "title": "Avg MTTR (hours)",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "tiles",
+              "tileSettings": {
+                "titleContent": { "columnMatch": "Avg MTTR (hrs)", "formatter": 12, "formatOptions": { "palette": "blue" } },
+                "showBorder": true
+              }
+            },
+            "customWidth": "20",
+            "name": "tile-mttr"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Alert severity breakdown (Armis-sourced alerts in SecurityAlert)\nSecurityAlert\n| where TimeGenerated {TimeRange}\n| where ProviderName has_any (\"Armis\", \"armis\", \"ARMIS\")\n| summarize Count=count() by Severity\n| sort by Count desc",
+              "size": 3,
+              "title": "Alert Severity Breakdown",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "piechart"
+            },
+            "customWidth": "40",
+            "name": "chart-alert-severity"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Alert volume trend by severity over time\nSecurityAlert\n| where TimeGenerated {TimeRange}\n| where ProviderName has_any (\"Armis\", \"armis\", \"ARMIS\")\n| summarize Count=count() by bin(TimeGenerated, 1d), Severity\n| sort by TimeGenerated asc",
+              "size": 0,
+              "title": "Alert Trend by Severity",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "timechart"
+            },
+            "customWidth": "60",
+            "name": "chart-alert-trend"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Most recent unresolved alerts — actionable list for CISO\nSecurityAlert\n| where TimeGenerated {TimeRange}\n| where ProviderName has_any (\"Armis\", \"armis\", \"ARMIS\")\n| where Status !in (\"Resolved\", \"Closed\")\n| project TimeGenerated, AlertName, Severity, Description, Entities, AlertLink\n| sort by Severity asc, TimeGenerated desc\n| take 20",
+              "size": 0,
+              "title": "Open Alerts (Latest 20)",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  { "columnMatch": "Severity", "formatter": 18, "formatOptions": { "thresholdsOptions": "icons", "thresholdsGrid": [
+                    { "operator": "==", "thresholdValue": "Critical", "representation": "critical", "text": "Critical" },
+                    { "operator": "==", "thresholdValue": "High",     "representation": "3",        "text": "High" },
+                    { "operator": "==", "thresholdValue": "Medium",   "representation": "2",        "text": "Medium" },
+                    { "operator": "Default",                          "representation": "1",        "text": "{0}" }
+                  ]}},
+                  { "columnMatch": "AlertLink", "formatter": 7, "formatOptions": { "linkTarget": "Url", "linkLabel": "Open in Sentinel" } }
+                ]
+              }
+            },
+            "name": "grid-open-alerts"
+          }
+
+        ]
+      },
+      "conditionalVisibility": { "parameterName": "selectedTab", "comparison": "isEqualTo", "value": "overview" },
+      "name": "tab-overview"
+    },
+
+
+    {
+      "type": 12,
+      "content": {
+        "version": "GroupItem/1.0",
+        "items": [
+
+          {
+            "type": 1,
+            "content": { "json": "## Device Risk\n> Armis device data. If tiles show 0, run the **Schema Discovery** query in the Setup tab to confirm your Armis table names and column names.\n>\n> **Column name note:** This workbook uses `column_ifexists()` to handle both the legacy (`_CL` suffix) and CCP (no suffix) connector schemas. If you see unexpected nulls, run `getschema ArmisDevices_CL` or `getschema ArmisDevice` in your Log Analytics workspace to verify field names." },
+            "name": "devices-heading"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Device risk level distribution\nunion isfuzzy=true\n    (ArmisDevices_CL\n     | where TimeGenerated {TimeRange}\n     | extend RiskLevel = column_ifexists('riskLevel_s', column_ifexists('risk_s', 'Unknown'))),\n    (ArmisDevice\n     | where TimeGenerated {TimeRange}\n     | extend RiskLevel = tostring(column_ifexists('riskLevel', column_ifexists('risk', 'Unknown'))))\n| summarize DeviceCount=dcount(column_ifexists('id_d', column_ifexists('id', tostring(rand())))) by RiskLevel\n| sort by DeviceCount desc",
+              "size": 3,
+              "title": "Devices by Risk Level",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "piechart"
+            },
+            "customWidth": "35",
+            "name": "chart-device-risk-dist"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Managed vs unmanaged device count\nunion isfuzzy=true\n    (ArmisDevices_CL\n     | where TimeGenerated {TimeRange}\n     | extend ManagedState = column_ifexists('visibility_s', column_ifexists('managedState_s', column_ifexists('managedBy_s', 'Unknown')))),\n    (ArmisDevice\n     | where TimeGenerated {TimeRange}\n     | extend ManagedState = tostring(column_ifexists('visibility', column_ifexists('managedState', column_ifexists('managedBy', 'Unknown')))))\n| extend ManagedCategory = iff(ManagedState has_any ('Full', 'Managed', 'Agent'), 'Managed', iff(ManagedState == 'Unknown', 'Unknown', 'Unmanaged'))\n| summarize Count=dcount(column_ifexists('id_d', column_ifexists('id', tostring(rand())))) by ManagedCategory",
+              "size": 3,
+              "title": "Managed vs Unmanaged",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "piechart"
+            },
+            "customWidth": "30",
+            "name": "chart-managed-state"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Device count by network segment / site\nunion isfuzzy=true\n    (ArmisDevices_CL\n     | where TimeGenerated {TimeRange}\n     | extend Segment = column_ifexists('site_s', column_ifexists('purdueLevel_s', column_ifexists('networkSegment_s', 'Unknown')))),\n    (ArmisDevice\n     | where TimeGenerated {TimeRange}\n     | extend Segment = tostring(column_ifexists('site', column_ifexists('purdueLevel', column_ifexists('networkSegment', 'Unknown')))))\n| summarize DeviceCount=dcount(column_ifexists('id_d', column_ifexists('id', tostring(rand())))) by Segment\n| sort by DeviceCount desc\n| take 15",
+              "size": 0,
+              "title": "Devices by Network Segment",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "categoricalbar"
+            },
+            "customWidth": "35",
+            "name": "chart-segment-dist"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// New devices detected in selected window (first seen)\nunion isfuzzy=true\n    (ArmisDevices_CL\n     | where TimeGenerated {TimeRange}\n     | extend DeviceName   = column_ifexists('name_s', 'Unknown')\n     | extend IPAddress    = column_ifexists('ipAddress_s', '')\n     | extend DeviceType   = column_ifexists('type_s', column_ifexists('category_s', ''))\n     | extend OS           = column_ifexists('operatingSystem_s', '')\n     | extend Segment      = column_ifexists('site_s', column_ifexists('networkSegment_s', ''))\n     | extend ManagedState = column_ifexists('visibility_s', '')\n     | extend FirstSeen    = column_ifexists('firstSeen_t', TimeGenerated)),\n    (ArmisDevice\n     | where TimeGenerated {TimeRange}\n     | extend DeviceName   = tostring(column_ifexists('name', 'Unknown'))\n     | extend IPAddress    = tostring(column_ifexists('ipAddress', ''))\n     | extend DeviceType   = tostring(column_ifexists('type', column_ifexists('category', '')))\n     | extend OS           = tostring(column_ifexists('operatingSystem', ''))\n     | extend Segment      = tostring(column_ifexists('site', column_ifexists('networkSegment', '')))\n     | extend ManagedState = tostring(column_ifexists('visibility', ''))\n     | extend FirstSeen    = todatetime(column_ifexists('firstSeen', TimeGenerated)))\n| where FirstSeen {TimeRange}\n| project FirstSeen, DeviceName, IPAddress, DeviceType, OS, Segment, ManagedState\n| sort by FirstSeen desc\n| take 50",
+              "size": 0,
+              "title": "New Devices Detected",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  { "columnMatch": "ManagedState", "formatter": 18, "formatOptions": { "thresholdsOptions": "icons", "thresholdsGrid": [
+                    { "operator": "contains", "thresholdValue": "Full",      "representation": "success", "text": "Managed" },
+                    { "operator": "contains", "thresholdValue": "Managed",   "representation": "success", "text": "Managed" },
+                    { "operator": "Default",                                  "representation": "3",       "text": "Unmanaged" }
+                  ]}}
+                ]
+              }
+            },
+            "name": "grid-new-devices"
+          }
+
+        ]
+      },
+      "conditionalVisibility": { "parameterName": "selectedTab", "comparison": "isEqualTo", "value": "devices" },
+      "name": "tab-devices"
+    },
+
+
+    {
+      "type": 12,
+      "content": {
+        "version": "GroupItem/1.0",
+        "items": [
+
+          {
+            "type": 1,
+            "content": { "json": "## Vulnerabilities & CISA KEV Coverage\n> KEV tiles require the `CISA-KEV` watchlist to be populated. See the Setup tab for the import process.\n>\n> CVE data from Armis may not appear in the `ArmisDevices_CL` / `ArmisDevice` table if your Armis connector version stores vulnerability data separately. If KEV match counts are 0 despite known vulnerable devices, verify your Armis API pipeline and check the `ArmisActivities` table for CVE event data." },
+            "name": "vulns-heading"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// CVE count by CVSS severity band from ACSC / CISA KEV watchlist — shows how many known-exploited CVEs affect your environment\nlet KEV = _GetWatchlist('CISA-KEV')\n    | project cveID=SearchKey,\n              vendorProject = column_ifexists('vendorProject', ''),\n              product       = column_ifexists('product', ''),\n              dateAdded     = column_ifexists('dateAdded', ''),\n              dueDate       = column_ifexists('dueDate', ''),\n              knownRansomware = column_ifexists('knownRansomwareCampaignUse', '');\nunion isfuzzy=true\n    (ArmisDevices_CL\n     | where TimeGenerated {TimeRange}\n     | extend DeviceName = column_ifexists('name_s', 'Unknown')\n     | extend vulnRaw    = column_ifexists('vulnerabilities_s', column_ifexists('cves_s', ''))),\n    (ArmisDevice\n     | where TimeGenerated {TimeRange}\n     | extend DeviceName = tostring(column_ifexists('name', 'Unknown'))\n     | extend vulnRaw    = tostring(column_ifexists('vulnerabilities', column_ifexists('cves', ''))))\n| where isnotempty(vulnRaw)\n| mv-expand cve = split(vulnRaw, ',')\n| extend cveID = trim_chars(' []\"', tostring(cve))\n| where cveID startswith 'CVE-'\n| join kind=inner KEV on cveID\n| extend RansomwareFlag = iff(knownRansomware == \"Known\", \"⚠️ Ransomware\", \"\")\n| project cveID, vendorProject, product, DeviceName, dateAdded, dueDate, RansomwareFlag\n| sort by dateAdded asc",
+              "size": 0,
+              "title": "Devices Matching CISA KEV Entries",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  { "columnMatch": "RansomwareFlag", "formatter": 18, "formatOptions": { "thresholdsOptions": "icons", "thresholdsGrid": [
+                    { "operator": "contains", "thresholdValue": "Ransomware", "representation": "critical", "text": "{0}" },
+                    { "operator": "Default",                                   "representation": "success",  "text": "" }
+                  ]}},
+                  { "columnMatch": "dueDate", "formatter": 18, "formatOptions": { "thresholdsOptions": "icons", "thresholdsGrid": [
+                    { "operator": "<=", "thresholdValue": "now()", "representation": "critical", "text": "OVERDUE: {0}" },
+                    { "operator": "Default",                       "representation": "2",        "text": "{0}" }
+                  ]}}
+                ]
+              }
+            },
+            "name": "grid-kev-matches"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// KEV coverage by vendor — which vendors have the most unpatched exploited CVEs in your environment\nlet KEV = _GetWatchlist('CISA-KEV')\n    | project cveID=SearchKey, vendorProject=column_ifexists('vendorProject', 'Unknown');\nunion isfuzzy=true\n    (ArmisDevices_CL | where TimeGenerated {TimeRange} | extend vulnRaw = column_ifexists('vulnerabilities_s', column_ifexists('cves_s', ''))),\n    (ArmisDevice     | where TimeGenerated {TimeRange} | extend vulnRaw = tostring(column_ifexists('vulnerabilities', column_ifexists('cves', ''))))\n| where isnotempty(vulnRaw)\n| mv-expand cve = split(vulnRaw, ',')\n| extend cveID = trim_chars(' []\"', tostring(cve))\n| join kind=inner KEV on cveID\n| summarize CVECount=dcount(cveID) by vendorProject\n| sort by CVECount desc\n| take 15",
+              "size": 3,
+              "title": "KEV Exposure by Vendor",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "categoricalbar"
+            },
+            "customWidth": "50",
+            "name": "chart-kev-by-vendor"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// ACSC advisories ingested via watchlist\n_GetWatchlist('ACSC-Advisories')\n| project AdvisoryDate=column_ifexists('date', ''), Title=column_ifexists('title', SearchKey), Link=column_ifexists('link', ''), CVE=column_ifexists('cve', '')\n| sort by AdvisoryDate desc\n| take 20",
+              "size": 0,
+              "title": "Recent ACSC Advisories (from Watchlist)",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  { "columnMatch": "Link", "formatter": 7, "formatOptions": { "linkTarget": "Url", "linkLabel": "View Advisory" } }
+                ]
+              }
+            },
+            "customWidth": "50",
+            "name": "grid-acsc-advisories"
+          }
+
+        ]
+      },
+      "conditionalVisibility": { "parameterName": "selectedTab", "comparison": "isEqualTo", "value": "vulns" },
+      "name": "tab-vulns"
+    },
+
+
+    {
+      "type": 12,
+      "content": {
+        "version": "GroupItem/1.0",
+        "items": [
+
+          {
+            "type": 1,
+            "content": { "json": "## Alerts & Incidents\nAll panels on this tab draw from confirmed Sentinel tables (`SecurityAlert`, `SecurityIncident`) — no Armis-specific table dependencies. These will populate as long as Sentinel is connected and incidents are being generated." },
+            "name": "alerts-heading"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Incident count by severity and status\nSecurityIncident\n| where CreatedTime {TimeRange}\n| summarize Count=count() by Severity, Status\n| sort by Severity asc",
+              "size": 0,
+              "title": "Incidents by Severity & Status",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "categoricalbar"
+            },
+            "customWidth": "50",
+            "name": "chart-incidents-by-severity"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Alert source breakdown — which providers are generating alerts\nSecurityAlert\n| where TimeGenerated {TimeRange}\n| summarize Count=count() by ProviderName\n| sort by Count desc\n| take 15",
+              "size": 3,
+              "title": "Alerts by Source",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "piechart"
+            },
+            "customWidth": "50",
+            "name": "chart-alert-source"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Open incidents — actionable list for the CISO\nSecurityIncident\n| where CreatedTime {TimeRange}\n| where Status !in (\"Closed\", \"Resolved\")\n| extend AgeHours = datetime_diff('hour', now(), CreatedTime)\n| project CreatedTime, IncidentNumber, Title, Severity, Status, Owner=tostring(parse_json(Owner).userPrincipalName), AgeHours, IncidentUrl\n| sort by Severity asc, AgeHours desc",
+              "size": 0,
+              "title": "Open Incidents",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  { "columnMatch": "Severity", "formatter": 18, "formatOptions": { "thresholdsOptions": "icons", "thresholdsGrid": [
+                    { "operator": "==", "thresholdValue": "Critical", "representation": "critical", "text": "Critical" },
+                    { "operator": "==", "thresholdValue": "High",     "representation": "3",        "text": "High" },
+                    { "operator": "==", "thresholdValue": "Medium",   "representation": "2",        "text": "Medium" },
+                    { "operator": "Default",                          "representation": "1",        "text": "{0}" }
+                  ]}},
+                  { "columnMatch": "AgeHours", "formatter": 18, "formatOptions": { "thresholdsOptions": "colors", "thresholdsGrid": [
+                    { "operator": ">=", "thresholdValue": "72", "representation": "redBright", "text": "{0}h ⚠️" },
+                    { "operator": ">=", "thresholdValue": "24", "representation": "orange",    "text": "{0}h" },
+                    { "operator": "Default",                    "representation": "green",     "text": "{0}h" }
+                  ]}},
+                  { "columnMatch": "IncidentUrl", "formatter": 7, "formatOptions": { "linkTarget": "Url", "linkLabel": "Open" } }
+                ]
+              }
+            },
+            "name": "grid-open-incidents"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Recently resolved incidents — confirm closures are accurate\nSecurityIncident\n| where ClosedTime {TimeRange}\n| where Status in (\"Closed\", \"Resolved\")\n| extend MTTR_hrs = round(datetime_diff('minute', ClosedTime, CreatedTime) / 60.0, 1)\n| project ClosedTime, IncidentNumber, Title, Severity, Classification, MTTR_hrs, IncidentUrl\n| sort by ClosedTime desc\n| take 25",
+              "size": 0,
+              "title": "Recently Resolved Incidents",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "gridSettings": {
+                "formatters": [
+                  { "columnMatch": "IncidentUrl", "formatter": 7, "formatOptions": { "linkTarget": "Url", "linkLabel": "Open" } }
+                ]
+              }
+            },
+            "name": "grid-resolved-incidents"
+          }
+
+        ]
+      },
+      "conditionalVisibility": { "parameterName": "selectedTab", "comparison": "isEqualTo", "value": "alerts" },
+      "name": "tab-alerts"
+    },
+
+
+    {
+      "type": 12,
+      "content": {
+        "version": "GroupItem/1.0",
+        "items": [
+
+          {
+            "type": 1,
+            "content": { "json": "## Trends\nQuarter-over-quarter trend data for the CISO. Extend the time range to 30 or 90 days to see trajectory. These charts are the live equivalent of the trajectory section in the quarterly VIB." },
+            "name": "trends-heading"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Weekly alert volume trend — extend time range to 90 days to see trajectory\nSecurityAlert\n| where TimeGenerated {TimeRange}\n| where ProviderName has_any (\"Armis\", \"armis\", \"ARMIS\")\n| summarize Alerts=count() by bin(TimeGenerated, 7d)\n| sort by TimeGenerated asc",
+              "size": 0,
+              "title": "Weekly Alert Volume",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "timechart"
+            },
+            "customWidth": "50",
+            "name": "chart-weekly-alert-trend"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Weekly incident MTTR trend\nSecurityIncident\n| where ClosedTime {TimeRange}\n| where Status in (\"Closed\", \"Resolved\")\n| extend MTTR_hrs = datetime_diff('minute', ClosedTime, CreatedTime) / 60.0\n| summarize AvgMTTR=round(avg(MTTR_hrs), 1) by bin(ClosedTime, 7d)\n| sort by ClosedTime asc",
+              "size": 0,
+              "title": "Weekly Avg MTTR (hours)",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "timechart"
+            },
+            "customWidth": "50",
+            "name": "chart-mttr-trend"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// New device discovery trend — are you seeing new/unknown devices?\nunion isfuzzy=true\n    (ArmisDevices_CL\n     | extend firstSeen = todatetime(column_ifexists('firstSeen_t', TimeGenerated))),\n    (ArmisDevice\n     | extend firstSeen = todatetime(column_ifexists('firstSeen', TimeGenerated)))\n| where firstSeen {TimeRange}\n| summarize NewDevices=dcount(column_ifexists('id_d', column_ifexists('id', tostring(rand())))) by bin(firstSeen, 7d)\n| sort by firstSeen asc",
+              "size": 0,
+              "title": "New Devices Discovered (Weekly)",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "timechart"
+            },
+            "customWidth": "50",
+            "name": "chart-new-device-trend"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// P1/P2 incident trend by week\nSecurityIncident\n| where CreatedTime {TimeRange}\n| where Severity in (\"Critical\", \"High\")\n| summarize P1P2Count=count() by bin(CreatedTime, 7d)\n| sort by CreatedTime asc",
+              "size": 0,
+              "title": "Weekly P1/P2 Incidents",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "timechart"
+            },
+            "customWidth": "50",
+            "name": "chart-p1p2-trend"
+          }
+
+        ]
+      },
+      "conditionalVisibility": { "parameterName": "selectedTab", "comparison": "isEqualTo", "value": "trends" },
+      "name": "tab-trends"
+    },
+
+
+    {
+      "type": 12,
+      "content": {
+        "version": "GroupItem/1.0",
+        "items": [
+
+          {
+            "type": 1,
+            "content": { "json": "## Setup & Validation\n\nRun these queries once after deploying the Armis connector to confirm your table names and column schema. Results will tell you exactly which table names and column name suffixes your connector version uses.\n\n### Step 1: Discover your Armis table names\nRun the query below. It will list every table in your workspace that starts with 'Armis'." },
+            "name": "setup-heading"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Step 1: Find all Armis tables in this workspace\nsearch *\n| where TimeGenerated > ago(3d)\n| extend tableName = _TableName\n| where tableName startswith \"Armis\" or tableName startswith \"armis\"\n| summarize RowCount=count(), LastRecord=max(TimeGenerated) by tableName\n| sort by LastRecord desc",
+              "size": 0,
+              "title": "Step 1: Armis Tables Detected",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table"
+            },
+            "name": "setup-discover-tables"
+          },
+
+          {
+            "type": 1,
+            "content": { "json": "### Step 2: Get column schemas\nReplace `YourTableNameHere` with the table names found above. Run once for each Armis table. Copy the column names and update the `column_ifexists()` calls in each workbook query to use the exact names." },
+            "name": "setup-step2-heading"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Step 2a: Schema for the Alerts table\n// Replace ArmisAlerts_CL with the actual table name from Step 1\nArmisAlerts_CL\n| getschema\n| project ColumnName, ColumnType, DataType\n| sort by ColumnName asc",
+              "size": 0,
+              "title": "Step 2a: ArmisAlerts_CL Schema",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table"
+            },
+            "customWidth": "50",
+            "name": "setup-alerts-schema"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Step 2b: Schema for the Devices table\n// Replace ArmisDevices_CL with the actual table name from Step 1\nArmisDevices_CL\n| getschema\n| project ColumnName, ColumnType, DataType\n| sort by ColumnName asc",
+              "size": 0,
+              "title": "Step 2b: ArmisDevices_CL Schema",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table"
+            },
+            "customWidth": "50",
+            "name": "setup-devices-schema"
+          },
+
+          {
+            "type": 1,
+            "content": { "json": "### Step 3: Verify CISA KEV watchlist\nConfirm the watchlist exists and has data." },
+            "name": "setup-step3-heading"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Step 3: Verify CISA-KEV watchlist exists and has entries\n// If this returns 0 rows, create the watchlist:\n// Sentinel > Watchlists > + New > Name: CISA-KEV, SearchKey: cveID\n// Import CSV from: https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json\n_GetWatchlist('CISA-KEV')\n| summarize TotalEntries=count(), Latest=max(column_ifexists('dateAdded', ''))",
+              "size": 0,
+              "title": "Step 3: CISA-KEV Watchlist Status",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table"
+            },
+            "customWidth": "50",
+            "name": "setup-kev-watchlist"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Step 3b: Verify ACSC-Advisories watchlist exists\n// Create manually: Sentinel > Watchlists > + New > Name: ACSC-Advisories\n// Columns: SearchKey (=cveID or advisory ID), title, date, link, cve\n_GetWatchlist('ACSC-Advisories')\n| summarize TotalEntries=count(), Latest=max(column_ifexists('date', ''))",
+              "size": 0,
+              "title": "Step 3b: ACSC-Advisories Watchlist Status",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table"
+            },
+            "customWidth": "50",
+            "name": "setup-acsc-watchlist"
+          },
+
+          {
+            "type": 1,
+            "content": { "json": "### Step 4: Confirm Armis is generating SecurityAlert entries\nThe Overview, Alerts, and Trends tabs draw from `SecurityAlert` filtered by `ProviderName has_any ('Armis', 'armis', 'ARMIS')`. Run this to confirm Armis is writing to that table in your workspace." },
+            "name": "setup-step4-heading"
+          },
+
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Step 4: Confirm Armis alerts are landing in SecurityAlert\nSecurityAlert\n| where TimeGenerated > ago(7d)\n| where ProviderName has_any (\"Armis\", \"armis\", \"ARMIS\")\n| summarize Count=count(), Latest=max(TimeGenerated) by ProviderName, AlertName\n| sort by Latest desc\n| take 20",
+              "size": 0,
+              "title": "Step 4: Armis Entries in SecurityAlert",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table"
+            },
+            "name": "setup-securityalert-check"
+          },
+
+          {
+            "type": 1,
+            "content": { "json": "---\n### Column name quick reference\nIf your Armis connector uses `_CL` tables (legacy DCR connector), column names will have type suffixes:\n- `_s` = string\n- `_d` = double / number\n- `_t` = datetime\n- `_b` = boolean\n\nIf your connector uses the newer CCP tables (no `_CL` suffix), column names have no suffix.\n\nAll queries in this workbook use `column_ifexists('name_s', column_ifexists('name', 'Unknown'))` to handle both. Once you confirm your schema from Steps 1-2, you can simplify those calls to use the exact column names for better performance.\n\n### Useful commands\n```\ngetschema ArmisAlerts_CL\ngetschema ArmisDevices_CL  \ngetschema ArmisActivities_CL\n\n// Find all Armis rows in the last hour:\nunion isfuzzy=true ArmisAlerts_CL, ArmisDevices_CL, ArmisActivities_CL\n| where TimeGenerated > ago(1h)\n| take 10\n```" },
+            "name": "setup-reference"
+          }
+
+        ]
+      },
+      "conditionalVisibility": { "parameterName": "selectedTab", "comparison": "isEqualTo", "value": "setup" },
+      "name": "tab-setup"
+    }
+
+  ]
+}
