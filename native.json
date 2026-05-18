@@ -1,0 +1,3066 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# University of Newcastle — Cybersecurity Posture Dashboard (Native)\n**Classification: TLP:AMBER — Internal use only**\n\n> This workbook uses Microsoft Defender for Endpoint (MDE), Okta, Mimecast, and native Sentinel tables. No Armis connector required.\n>\n> **Required connectors:** MDE (`DeviceInfo`, `DeviceTvmSoftwareVulnerabilities`), Okta (`Okta_CL` or `OktaSSO`), Mimecast (`CommonSecurityLog` or `MimecastSEGEvent_CL`), Entra ID (`SigninLogs`), and standard Sentinel tables.\n>\n> **CISA KEV:** The Vulnerabilities tab requires a Sentinel Watchlist named `CISA-KEV` with `cveID` as the SearchKey. See the Setup tab for import instructions."
+      },
+      "name": "header-text"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "param-timerange",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time Range",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 604800000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 3600000
+                },
+                {
+                  "durationMs": 86400000
+                },
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 2592000000
+                }
+              ]
+            }
+          },
+          {
+            "id": "param-tab",
+            "version": "KqlParameterItem/1.0",
+            "name": "selectedTab",
+            "label": "View",
+            "type": 2,
+            "isRequired": true,
+            "value": "vulns",
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "jsonData": "[{\"value\": \"overview\", \"label\": \"📊 Overview\"}, {\"value\": \"devices\", \"label\": \"🖥️ Device Risk\"}, {\"value\": \"vulns\", \"label\": \"🔴 Vulnerabilities\"}, {\"value\": \"identity\", \"label\": \"🔑 Identity\"}, {\"value\": \"alerts\", \"label\": \"🚨 Alerts & Incidents\"}, {\"value\": \"email\", \"label\": \"📧 Email Threats\"}, {\"value\": \"cloud\", \"label\": \"☁️ Cloud (AWS)\"}, {\"value\": \"trends\", \"label\": \"📈 Trends\"}, {\"value\": \"ai-usage\", \"label\": \"🤖 AI Usage\"}, {\"value\": \"setup\", \"label\": \"⚙️ Setup & Validation\"}]"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "parameters"
+    },
+    {
+      "type": 11,
+      "content": {
+        "version": "LinkItem/1.0",
+        "style": "tabs",
+        "links": [
+          {
+            "id": "tab-link-overview",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "📊 Overview",
+            "subTarget": "overview",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-devices",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "🖥️ Device Risk",
+            "subTarget": "devices",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-vulns",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "🔴 Vulnerabilities",
+            "subTarget": "vulns",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-identity",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "🔑 Identity",
+            "subTarget": "identity",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-alerts",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "🚨 Alerts & Incidents",
+            "subTarget": "alerts",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-email",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "📧 Email Threats",
+            "subTarget": "email",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-cloud",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "☁️ Cloud (AWS)",
+            "subTarget": "cloud",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-trends",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "📈 Trends",
+            "subTarget": "trends",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-ai-usage",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "🤖 AI Usage",
+            "subTarget": "ai-usage",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-setup",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "⚙️ Setup & Validation",
+            "subTarget": "setup",
+            "style": "link"
+          }
+        ]
+      },
+      "name": "tab-navigation"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Current Security Posture\nTiles draw from MDE, Sentinel, and Entra ID for the selected time range."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "name": "overview-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Open Critical + High alerts from all sources\nunion isfuzzy=true SecurityAlert\n| where TimeGenerated {TimeRange}\n| where AlertSeverity in (\"Critical\", \"High\")\n| where Status !in (\"Resolved\", \"Closed\")\n| summarize ['Open Critical/High Alerts']=count()",
+        "size": 4,
+        "title": "Open Critical / High Alerts",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Open Critical/High Alerts",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "16",
+      "name": "tile-open-alerts"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Open P1/P2 Sentinel incidents — deduplicated to current status\nunion isfuzzy=true SecurityIncident\n| where CreatedTime {TimeRange}\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where Severity in (\"High\", \"Critical\")\n| where Status !in (\"Closed\", \"Resolved\")\n| summarize ['Open P1/P2 Incidents']=count()",
+        "size": 4,
+        "title": "Open P1 / P2 Incidents",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Open P1/P2 Incidents",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "16",
+      "name": "tile-p1p2-incidents"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// CISA KEV CVEs present in MDE device inventory\n// Requires CISA-KEV watchlist with cveID as SearchKey\nlet KEV = union isfuzzy=true (_GetWatchlist('CISA-KEV') | project cveID=SearchKey);\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| where isnotempty(CveId)\n| where CveId in (KEV)\n| summarize ['KEV Matches']=dcount(CveId)",
+        "size": 4,
+        "title": "CISA KEV Matches (MDE)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "KEV Matches",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "orange"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "16",
+      "name": "tile-kev-matches"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// VIB Q1 2026 priority CVEs detected in MDE device inventory\n// Source: UoN Vulnerability Intelligence Brief Q1 2026, Section 3.1\nlet PriorityCVEs = dynamic([\"CVE-2026-20131\",\"CVE-2026-1731\",\"CVE-2026-1281\",\"CVE-2026-1340\",\"CVE-2026-24858\",\"CVE-2026-21858\",\"CVE-2025-61882\",\"CVE-2025-14847\"]);\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| where CveId in (PriorityCVEs)\n| summarize ['VIB Priority CVEs Present']=dcount(CveId)",
+        "size": 4,
+        "title": "VIB Q1 Priority CVEs in Environment",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "VIB Priority CVEs Present",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "16",
+      "name": "tile-vib-priority-cves"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// High/Critical risk devices currently onboarded in MDE\nunion isfuzzy=true DeviceInfo\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by DeviceId\n| where OnboardingStatus == \"Onboarded\"\n| extend ExposureLevel = column_ifexists('ExposureLevel', 'Unknown')\n| where ExposureLevel in (\"High\", \"Critical\")\n| summarize ['High-Risk Devices']=count()",
+        "size": 4,
+        "title": "High-Risk Devices (MDE)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "High-Risk Devices",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "16",
+      "name": "tile-highrisk-devices"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Medium/High risk sign-ins from Entra ID\nunion isfuzzy=true SigninLogs\n| where TimeGenerated {TimeRange}\n| where RiskLevelDuringSignIn in (\"high\", \"medium\")\n| summarize ['Risky Sign-ins']=count()",
+        "size": 4,
+        "title": "Risky Sign-ins (Entra)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Risky Sign-ins",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "orange"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "16",
+      "name": "tile-risky-signins"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Mean time to resolve closed incidents\nunion isfuzzy=true SecurityIncident\n| where ClosedTime {TimeRange}\n| where Status == \"Closed\"\n| extend MTTRHours = datetime_diff('minute', ClosedTime, CreatedTime) / 60.0\n| summarize ['Avg MTTR (hrs)']=round(avg(MTTRHours), 1)",
+        "size": 4,
+        "title": "Avg MTTR (hours)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Avg MTTR (hrs)",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "16",
+      "name": "tile-mttr"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Alert severity breakdown across all connected sources\nunion isfuzzy=true SecurityAlert\n| where TimeGenerated {TimeRange}\n| summarize Count=count() by AlertSeverity\n| sort by Count desc",
+        "size": 3,
+        "title": "Alert Severity Breakdown",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "piechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "35",
+      "name": "chart-alert-severity"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Alert volume trend by severity\nunion isfuzzy=true SecurityAlert\n| where TimeGenerated {TimeRange}\n| summarize Count=count() by bin(TimeGenerated, 1d), AlertSeverity\n| sort by TimeGenerated asc",
+        "size": 0,
+        "title": "Alert Trend by Severity",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "65",
+      "name": "chart-alert-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Open alerts — actionable list for CISO, all sources\nunion isfuzzy=true SecurityAlert\n| where TimeGenerated {TimeRange}\n| where Status !in (\"Resolved\", \"Closed\")\n| project TimeGenerated, AlertName, AlertSeverity, ProviderName, Description, AlertLink\n| sort by AlertSeverity asc, TimeGenerated desc\n| take 20",
+        "size": 0,
+        "title": "Open Alerts (Latest 20, All Sources)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Severity",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Critical",
+                    "representation": "critical",
+                    "text": "Critical"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "High",
+                    "representation": "3",
+                    "text": "High"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Medium",
+                    "representation": "2",
+                    "text": "Medium"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "1",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "AlertLink",
+              "formatter": 7,
+              "formatOptions": {
+                "linkTarget": "Url",
+                "linkLabel": "Open"
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "name": "grid-open-alerts"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Device Risk\n> Sourced from Microsoft Defender for Endpoint. Requires the MDE connector and sufficient device onboarding coverage.\n>\n> `DeviceInfo` records update when device state changes. Use `arg_max(TimeGenerated, *)` to get the current state per device. Devices that have not reported in the time window will not appear — extend the time range or use `ago(7d)` in a custom query if you need full inventory."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "devices"
+      },
+      "name": "devices-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// MDE device exposure level distribution - current state\nDeviceInfo\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by DeviceId\n| where OnboardingStatus == \"Onboarded\"\n| extend ExposureLevel = column_ifexists(\"ExposureLevel\", \"Unknown\")\n| summarize DeviceCount = count() by ExposureLevel\n| sort by\n    case(\n        ExposureLevel == \"VeryHigh\", 1,\n        ExposureLevel == \"High\",     2,\n        ExposureLevel == \"Medium\",   3,\n        ExposureLevel == \"Low\",      4,\n        5\n    )",
+        "size": 3,
+        "title": "Devices by Risk Score (MDE)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "piechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "devices"
+      },
+      "customWidth": "30",
+      "name": "chart-device-risk-dist"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// MDE onboarding coverage — are all devices reporting?\nunion isfuzzy=true DeviceInfo\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by DeviceId\n| summarize Count=count() by OnboardingStatus\n| sort by Count desc",
+        "size": 3,
+        "title": "Onboarding Coverage",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "piechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "devices"
+      },
+      "customWidth": "30",
+      "name": "chart-onboarding-status"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Device count by OS platform\nunion isfuzzy=true DeviceInfo\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by DeviceId\n| where OnboardingStatus == \"Onboarded\"\n| summarize Count=count() by OSPlatform\n| sort by Count desc",
+        "size": 3,
+        "title": "Devices by OS Platform",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "piechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "devices"
+      },
+      "customWidth": "40",
+      "name": "chart-os-platform"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// High-risk devices triage list (Defender-aligned)\nDeviceInfo\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by DeviceId\n| where OnboardingStatus == \"Onboarded\"\n| extend\n    ExposureLevel = column_ifexists(\"ExposureLevel\", \"Unknown\"),\n    RiskScore     = column_ifexists(\"RiskScore\", \"Unknown\"),\n    SensorHealth  = column_ifexists(\"SensorHealthState\", \"Unknown\")\n| where\n    ExposureLevel in (\"High\", \"VeryHigh\")\n    or RiskScore in (\"High\", \"Critical\")\n| project\n    DeviceName,\n    ExposureLevel,\n    RiskScore,\n    SensorHealth,\n    OSPlatform,\n    OSVersion,\n    OnboardingStatus,\n    LastSeen = TimeGenerated\n| sort by\n    ExposureLevel desc,\n    SensorHealth asc,\n    LastSeen asc\n| take 30",
+        "size": 0,
+        "title": "High / Critical Risk Devices",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "RiskScore",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Critical",
+                    "representation": "redBright",
+                    "text": "Critical"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "High",
+                    "representation": "orange",
+                    "text": "High"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "HealthStatus",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Active",
+                    "representation": "success",
+                    "text": "Active"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "3",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "devices"
+      },
+      "customWidth": "60",
+      "name": "grid-highrisk-devices"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Devices with impaired or missing sensor - blind spots\nunion isfuzzy=true DeviceInfo\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by DeviceId\n| where OnboardingStatus == \"Onboarded\"\n| extend SensorHealth = column_ifexists('SensorHealthState', '')\n| extend RiskScore    = column_ifexists('RiskScore', 'Unknown')\n| where SensorHealth !in (\"Active\", \"\")\n| project DeviceName, SensorHealth, OSPlatform, RiskScore, LastSeen=TimeGenerated\n| sort by LastSeen asc\n| take 30",
+        "size": 0,
+        "title": "Devices with Impaired / Missing Sensor",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "HealthStatus",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Active",
+                    "representation": "green",
+                    "text": "Active"
+                  },
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "Impaired",
+                    "representation": "orange",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "NoSensorData",
+                    "representation": "redBright",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "3",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "devices"
+      },
+      "customWidth": "40",
+      "name": "grid-unhealthy-devices"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Devices that can be onboarded but are not yet onboarded — coverage gap\nDeviceInfo\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by DeviceId\n| where OnboardingStatus == \"CanBeOnboarded\"\n| extend\n    LastSeen     = TimeGenerated,\n    SensorHealth = column_ifexists(\"SensorHealthState\", \"Unknown\")\n| project\n    DeviceName,\n    OSPlatform,\n    OSVersion,\n    SensorHealth,\n    LastSeen\n| sort by LastSeen desc\n| take 30",
+        "size": 0,
+        "title": "Devices Not Yet Onboarded (Coverage Gap)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "devices"
+      },
+      "name": "grid-not-onboarded"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Vulnerabilities & CISA KEV Coverage\n> **VIB Q1 2026 priority CVEs** (Section 3.1 — check the first grid below for these specifically):\n> Cisco Firewall CVE-2026-20131 (CVSS 10.0, Interlock ransomware) · BeyondTrust CVE-2026-1731 (9.9) · Ivanti EPMM CVE-2026-1281/1340 (9.8, MDM) · Fortinet CVE-2026-24858 (9.4) · n8n CVE-2026-21858 (10.0) · Oracle EBS CVE-2025-61882 (Cl0p/FIN11 campaign) · MongoDB CVE-2025-14847 (active AU exploitation)\n>\n> CVE data sourced from MDE Threat & Vulnerability Management (`DeviceTvmSoftwareVulnerabilities`). KEV tiles require the `CISA-KEV` watchlist. See the Setup tab."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "name": "vulns-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let PriorityCVEs = dynamic([\n    \"CVE-2026-20131\",\n    \"CVE-2026-1731\",\n    \"CVE-2026-1281\",\n    \"CVE-2026-1340\",\n    \"CVE-2026-24858\",\n    \"CVE-2026-21858\",\n    \"CVE-2025-61882\",\n    \"CVE-2025-14847\"\n]);\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| where CveId in (PriorityCVEs)\n| project CveId, SoftwareName, SoftwareVendor, VulnerabilitySeverityLevel, DeviceName\n| sort by VulnerabilitySeverityLevel asc",
+        "size": 0,
+        "title": "VIB Q1 2026 Priority CVE Exposure (Section 3.1)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "VulnerabilitySeverityLevel",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Critical",
+                    "representation": "redBright",
+                    "text": "Critical"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "High",
+                    "representation": "orange",
+                    "text": "High"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "name": "grid-vib-priority-cves"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Devices matching CISA KEV entries — join MDE TVM with watchlist\nlet KEV = union isfuzzy=true (_GetWatchlist('CISA-KEV')\n    | project cveID=SearchKey,\n              vendorProject   = column_ifexists('vendorProject', ''),\n              product         = column_ifexists('product', ''),\n              dateAdded       = column_ifexists('dateAdded', ''),\n              dueDate         = column_ifexists('dueDate', ''),\n              knownRansomware = column_ifexists('knownRansomwareCampaignUse', ''));\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| where isnotempty(CveId)\n| join kind=inner KEV on $left.CveId == $right.cveID\n| extend RansomwareFlag = iff(knownRansomware == \"Known\", \"Ransomware\", \"\")\n| extend DaysUntilDue   = iff(isnotempty(dueDate), datetime_diff('day', todatetime(dueDate), now()), int(null))\n| project CveId, SoftwareVendor, SoftwareName, VulnerabilitySeverityLevel, DeviceName, dateAdded, dueDate, DaysUntilDue, RansomwareFlag\n| sort by DaysUntilDue asc",
+        "size": 0,
+        "title": "Devices Matching CISA KEV Entries",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "VulnerabilitySeverityLevel",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Critical",
+                    "representation": "redBright",
+                    "text": "Critical"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "High",
+                    "representation": "orange",
+                    "text": "High"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "RansomwareFlag",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "Ransomware",
+                    "representation": "critical",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "success",
+                    "text": ""
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "dueDate",
+              "formatter": 1
+            },
+            {
+              "columnMatch": "DaysUntilDue",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "<=",
+                    "thresholdValue": "0",
+                    "representation": "redBright",
+                    "text": "OVERDUE ({0}d)"
+                  },
+                  {
+                    "operator": "<=",
+                    "thresholdValue": "14",
+                    "representation": "orange",
+                    "text": "Due in {0}d"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "Due in {0}d"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "name": "grid-kev-matches"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// KEV exposure by software vendor\nlet KEV = union isfuzzy=true (_GetWatchlist('CISA-KEV') | project cveID=SearchKey, vendorProject=column_ifexists('vendorProject','Unknown'));\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| where isnotempty(CveId)\n| join kind=inner KEV on $left.CveId == $right.cveID\n| summarize CVECount=dcount(CveId) by vendorProject\n| sort by CVECount desc\n| take 15",
+        "size": 3,
+        "title": "KEV Exposure by Vendor",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "categoricalbar"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "customWidth": "50",
+      "name": "chart-kev-by-vendor"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// CVE severity distribution across all MDE-managed devices\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| summarize DeviceCount=dcount(DeviceId) by VulnerabilitySeverityLevel\n| sort by DeviceCount desc",
+        "size": 3,
+        "title": "Devices by CVE Severity (MDE TVM)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "piechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "customWidth": "50",
+      "name": "chart-cvss-severity"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Most vulnerable devices — ranked by critical CVE count\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| summarize\n    TotalCVEs    = dcount(CveId),\n    CriticalCVEs = dcountif(CveId, VulnerabilitySeverityLevel == \"Critical\"),\n    HighCVEs     = dcountif(CveId, VulnerabilitySeverityLevel == \"High\")\n  by DeviceName\n| sort by CriticalCVEs desc, HighCVEs desc\n| take 25",
+        "size": 0,
+        "title": "Most Vulnerable Devices (by CVE Count)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "CriticalCVEs",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "5",
+                    "representation": "redBright",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "1",
+                    "representation": "orange",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "customWidth": "50",
+      "name": "grid-most-vulnerable-devices"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// KEV dwell time — days since each matched CVE was added to CISA KEV list\nlet KEV = union isfuzzy=true (_GetWatchlist('CISA-KEV')\n    | project cveID=SearchKey,\n              vendorProject = column_ifexists('vendorProject', 'Unknown'),\n              dateAdded     = column_ifexists('dateAdded', ''));\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| join kind=inner KEV on $left.CveId == $right.cveID\n| extend DwellDays = iff(isnotempty(dateAdded), datetime_diff('day', now(), todatetime(dateAdded)), int(null))\n| summarize DwellDays=max(DwellDays), AffectedDevices=dcount(DeviceId) by CveId, vendorProject\n| sort by DwellDays desc\n| take 25",
+        "size": 0,
+        "title": "KEV Dwell Time — Days Since Added to KEV List",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "DwellDays",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "365",
+                    "representation": "redBright",
+                    "text": "{0}d"
+                  },
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "180",
+                    "representation": "orange",
+                    "text": "{0}d"
+                  },
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "90",
+                    "representation": "yellow",
+                    "text": "{0}d"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}d"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "customWidth": "50",
+      "name": "grid-kev-dwell"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// ACSC advisories from watchlist\nunion isfuzzy=true _GetWatchlist('ACSC-Advisories')\n| project AdvisoryDate=column_ifexists('date',''), Title=column_ifexists('title', SearchKey), Link=column_ifexists('link',''), CVE=column_ifexists('cve','')\n| sort by AdvisoryDate desc\n| take 20",
+        "size": 0,
+        "title": "Recent ACSC Advisories (from Watchlist)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Link",
+              "formatter": 7,
+              "formatOptions": {
+                "linkTarget": "Url",
+                "linkLabel": "View Advisory"
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "name": "grid-acsc-advisories"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Native Defender Vulnerability Findings\n> The queries below draw directly from `DeviceTvmSoftwareVulnerabilities` with no watchlist dependency. Use these to understand raw exposure in the estate — highest-impact CVEs to remediate, software with the most open vulnerabilities, and where public exploits exist."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "name": "vulns-native-subheading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Defender-identified software exposure (native TVM, no enrichment assumptions)\nDeviceTvmSoftwareVulnerabilities\n| where TimeGenerated >= ago(30d)\n| where isnotempty(SoftwareName)\n| summarize\n    AffectedDevices = dcount(DeviceId),\n    FirstSeen = min(TimeGenerated),\n    LastSeen  = max(TimeGenerated)\n  by SoftwareName, SoftwareVendor\n| sort by AffectedDevices desc\n| take 25",
+        "size": 0,
+        "title": "Top Critical/High CVEs by Device Exposure (no watchlist)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Severity",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Critical",
+                    "representation": "redBright",
+                    "text": "Critical"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "High",
+                    "representation": "orange",
+                    "text": "High"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "Public Exploit",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Yes",
+                    "representation": "critical",
+                    "text": "Yes"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "success",
+                    "text": ""
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "CVSS",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "9",
+                    "representation": "redBright",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "7",
+                    "representation": "orange",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "yellow",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "name": "grid-native-top-cves"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Software packages with the most distinct Critical/High CVEs — identify high-priority patching targets\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| where VulnerabilitySeverityLevel in (\"Critical\", \"High\")\n| summarize\n    DistinctCVEs    = dcount(CveId),\n    AffectedDevices = dcount(DeviceId),\n    CriticalCount   = dcountif(CveId, VulnerabilitySeverityLevel == \"Critical\"),\n    HighCount       = dcountif(CveId, VulnerabilitySeverityLevel == \"High\")\n  by SoftwareName, SoftwareVendor, SoftwareVersion\n| sort by DistinctCVEs desc\n| take 20\n| project Software=SoftwareName, Vendor=SoftwareVendor, Version=SoftwareVersion,\n    ['Total CVEs']=DistinctCVEs, Critical=CriticalCount, High=HighCount, ['Devices Affected']=AffectedDevices",
+        "size": 0,
+        "title": "Software with Most Open Vulnerabilities",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Critical",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "1",
+                    "representation": "redBright",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "Total CVEs",
+              "formatter": 4,
+              "formatOptions": {
+                "palette": "orange",
+                "max": 50,
+                "min": 0
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "customWidth": "50",
+      "name": "grid-native-vulnerable-software"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// CVEs with confirmed public exploits — highest remediation priority regardless of CVSS\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| where IsExploitAvailable == 1\n| summarize\n    AffectedDevices = dcount(DeviceId),\n    CvssScore       = max(CvssScore),\n    Severity        = any(VulnerabilitySeverityLevel),\n    Software        = any(SoftwareName),\n    Vendor          = any(SoftwareVendor)\n  by CveId\n| sort by CvssScore desc, AffectedDevices desc\n| project CveId, Severity, ['CVSS']=CvssScore, Software, Vendor, ['Affected Devices']=AffectedDevices",
+        "size": 0,
+        "title": "CVEs with Public Exploits Available",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Severity",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Critical",
+                    "representation": "redBright",
+                    "text": "Critical"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "High",
+                    "representation": "orange",
+                    "text": "High"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "yellow",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "CVSS",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "9",
+                    "representation": "redBright",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "7",
+                    "representation": "orange",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "yellow",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "customWidth": "50",
+      "name": "grid-native-exploited-cves"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Identity Risk\n> Draws from Entra ID (`SigninLogs`) and Okta (`Okta_CL` / `OktaSSO`). Risky sign-in data requires Entra ID Identity Protection (P2 licence). Okta queries use `union isfuzzy=true` to handle both legacy DCR connector and the newer CCP connector table names.\n>\n> If Okta tiles show 0, run the **Setup & Validation** tab to confirm your table name."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "identity"
+      },
+      "name": "identity-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Risky sign-ins detected by Entra ID Identity Protection\nunion isfuzzy=true SigninLogs\n| where TimeGenerated {TimeRange}\n| where RiskLevelDuringSignIn in (\"high\", \"medium\")\n| summarize ['Risky Sign-ins']=count()",
+        "size": 4,
+        "title": "Risky Sign-ins (Entra)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Risky Sign-ins",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "orange"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "identity"
+      },
+      "customWidth": "25",
+      "name": "tile-risky-signins-id"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Failed MFA attempts — excludes expected interrupts (50140 = stay signed in, 50126 = wrong credential)\nunion isfuzzy=true SigninLogs\n| where TimeGenerated {TimeRange}\n| where AuthenticationRequirement == \"multiFactorAuthentication\"\n| where ResultType !in (\"0\", \"50140\", \"50074\", \"50005\")\n| summarize ['Failed MFA Attempts']=count()",
+        "size": 4,
+        "title": "Failed MFA Attempts",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Failed MFA Attempts",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "orange"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "identity"
+      },
+      "customWidth": "25",
+      "name": "tile-failed-mfa"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Okta authentication failures and policy events\nunion isfuzzy=true\n    (Okta_CL\n     | where TimeGenerated {TimeRange}\n     | extend Outcome   = column_ifexists('outcome_result_s', '')\n     | extend EventType = column_ifexists('eventType_s', '')\n     | where Outcome =~ \"FAILURE\"\n        or EventType has_any ('mfa', 'policy', 'admin', 'lock')),\n    (OktaSSO\n     | where TimeGenerated {TimeRange}\n     | extend Outcome   = column_ifexists('Outcome_Result', '')\n     | extend EventType = column_ifexists('EventType', '')\n     | where Outcome =~ \"FAILURE\"\n        or EventType has_any ('mfa', 'policy', 'admin', 'lock'))\n| summarize ['Okta Auth Failures / Policy Events']=count()",
+        "size": 4,
+        "title": "Okta Failures / Policy Events",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Okta Auth Failures / Policy Events",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "orange"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "identity"
+      },
+      "customWidth": "25",
+      "name": "tile-okta-failures"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Accounts at risk of compromise — risky users from Entra\nunion isfuzzy=true SigninLogs\n| where TimeGenerated {TimeRange}\n| where RiskLevelDuringSignIn in (\"high\", \"medium\")\n| summarize ['Accounts with Risky Sign-ins']=dcount(UserPrincipalName)",
+        "size": 4,
+        "title": "Accounts with Risky Sign-ins",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Accounts with Risky Sign-ins",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "identity"
+      },
+      "customWidth": "25",
+      "name": "tile-risky-accounts"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Sign-in failure reasons breakdown\nunion isfuzzy=true SigninLogs\n| where TimeGenerated {TimeRange}\n| where ResultType != \"0\"\n| summarize Count=count() by ResultDescription\n| sort by Count desc\n| take 10",
+        "size": 3,
+        "title": "Sign-in Failure Reasons",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "piechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "identity"
+      },
+      "customWidth": "40",
+      "name": "chart-signin-failures"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Risky sign-ins by country of origin\nunion isfuzzy=true SigninLogs\n| where TimeGenerated {TimeRange}\n| where RiskLevelDuringSignIn in (\"high\", \"medium\")\n| summarize Count=count() by Country=tostring(LocationDetails.countryOrRegion)\n| sort by Count desc\n| take 15",
+        "size": 3,
+        "title": "Risky Sign-ins by Country",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "categoricalbar"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "identity"
+      },
+      "customWidth": "60",
+      "name": "chart-risky-signin-geo"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Risky sign-ins detail — prioritised by risk level\nunion isfuzzy=true SigninLogs\n| where TimeGenerated {TimeRange}\n| where RiskLevelDuringSignIn in (\"high\", \"medium\")\n| project TimeGenerated, UserPrincipalName, AppDisplayName, IPAddress, Country=tostring(LocationDetails.countryOrRegion), RiskLevelDuringSignIn, RiskState, ResultType, ResultDescription\n| sort by RiskLevelDuringSignIn asc, TimeGenerated desc\n| take 50",
+        "size": 0,
+        "title": "Risky Sign-ins Detail",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "RiskLevelDuringSignIn",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "high",
+                    "representation": "redBright",
+                    "text": "High"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "medium",
+                    "representation": "orange",
+                    "text": "Medium"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "identity"
+      },
+      "customWidth": "60",
+      "name": "grid-risky-signins"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Okta events - failures, MFA events, admin access, lockouts\nunion isfuzzy=true\n    (Okta_CL\n     | where TimeGenerated {TimeRange}\n     | extend EventType = column_ifexists('eventType_s', '')\n     | extend Actor     = column_ifexists('actor_alternateId_s', '')\n     | extend Outcome   = column_ifexists('outcome_result_s', '')\n     | extend Message   = column_ifexists('displayMessage_s', '')\n     | extend Severity  = column_ifexists('severity_s', '')),\n    (OktaSSO\n     | where TimeGenerated {TimeRange}\n     | extend EventType = column_ifexists('EventType', '')\n     | extend Actor     = column_ifexists('Actor_AlternateId', '')\n     | extend Outcome   = column_ifexists('Outcome_Result', '')\n     | extend Message   = column_ifexists('DisplayMessage', '')\n     | extend Severity  = column_ifexists('Severity', ''))\n| where Outcome =~ \"FAILURE\"\n   or EventType has_any ('mfa', 'policy', 'admin', 'lock', 'access_admin')\n| project TimeGenerated, EventType, Actor, Outcome, Message, Severity\n| sort by TimeGenerated desc\n| take 50",
+        "size": 0,
+        "title": "Okta Failure / Policy Events",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "identity"
+      },
+      "customWidth": "40",
+      "name": "grid-okta-events"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// ShinyHunters pattern — admin-initiated credential reset followed by sign-in within 60 minutes\n// VIB Q1 2026 Section 5.2: ShinyHunters bypassed MFA by calling help desk to reset credentials\n// A reset + immediate login from a new IP is the clearest indicator of this technique\nlet Resets = union isfuzzy=true AuditLogs\n    | where TimeGenerated {TimeRange}\n    | where OperationName == \"Reset password (by admin)\"\n    | extend TargetUser = tostring(TargetResources[0].userPrincipalName)\n    | project ResetTime=TimeGenerated, TargetUser;\nunion isfuzzy=true SigninLogs\n| where TimeGenerated {TimeRange}\n| where ResultType == \"0\"\n| join kind=inner Resets on $left.UserPrincipalName == $right.TargetUser\n| where TimeGenerated >= ResetTime\n| where datetime_diff('minute', TimeGenerated, ResetTime) <= 60\n| project TimeGenerated, UserPrincipalName, ResetTime, MinutesAfterReset=datetime_diff('minute', TimeGenerated, ResetTime), AppDisplayName, IPAddress, Country=tostring(LocationDetails.countryOrRegion), AuthenticationRequirement\n| sort by MinutesAfterReset asc",
+        "size": 0,
+        "title": "Credential Reset → Immediate Login (ShinyHunters Pattern — VIB Section 5.2)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "MinutesAfterReset",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "<=",
+                    "thresholdValue": "5",
+                    "representation": "redBright",
+                    "text": "{0} min ⚠️"
+                  },
+                  {
+                    "operator": "<=",
+                    "thresholdValue": "30",
+                    "representation": "orange",
+                    "text": "{0} min"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "yellow",
+                    "text": "{0} min"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "identity"
+      },
+      "name": "grid-shinyhumters-pattern"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// AiTM (Adversary-in-the-Middle) phishing indicators\n// VIB Q1 2026 Section 5.3: REN-ISAC advisory — AiTM defeats traditional MFA by proxying sessions\n// Indicators: successful MFA auth from unregistered/non-compliant device, high-risk state\nunion isfuzzy=true SigninLogs\n| where TimeGenerated {TimeRange}\n| where ResultType == \"0\"\n| where AuthenticationRequirement == \"multiFactorAuthentication\"\n| where RiskLevelDuringSignIn in (\"high\", \"medium\")\n    or RiskState has_any (\"atRisk\", \"confirmedCompromised\")\n| extend DeviceId = tostring(DeviceDetail.deviceId)\n| extend IsCompliant = tostring(DeviceDetail.isCompliant)\n| extend DeviceName = tostring(DeviceDetail.displayName)\n| project TimeGenerated, UserPrincipalName, IPAddress, Country=tostring(LocationDetails.countryOrRegion), AuthenticationRequirement, RiskLevelDuringSignIn, RiskState, DeviceName, IsCompliant, AppDisplayName\n| sort by RiskLevelDuringSignIn asc, TimeGenerated desc\n| take 50",
+        "size": 0,
+        "title": "AiTM Phishing Indicators — MFA Bypass Risk (VIB Section 5.3)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "RiskLevelDuringSignIn",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "high",
+                    "representation": "redBright",
+                    "text": "High"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "medium",
+                    "representation": "orange",
+                    "text": "Medium"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "IsCompliant",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "True",
+                    "representation": "success",
+                    "text": "Compliant"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "3",
+                    "text": "Non-compliant / Unknown"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "identity"
+      },
+      "name": "grid-aitm-indicators"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Alerts & Incidents\nDraws from `SecurityAlert` and `SecurityIncident` — standard Sentinel tables that populate from all connected sources (MDE, Defender for O365, Okta, Mimecast, Sentinel analytics rules)."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "alerts"
+      },
+      "name": "alerts-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Incident count by severity — current status only\nunion isfuzzy=true SecurityIncident\n| where CreatedTime {TimeRange}\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| summarize Count=count() by Severity, Status\n| sort by Severity asc",
+        "size": 0,
+        "title": "Incidents by Severity & Status",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "categoricalbar"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "alerts"
+      },
+      "customWidth": "50",
+      "name": "chart-incidents-by-severity"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Alert source breakdown — which tools are generating alerts\nunion isfuzzy=true SecurityAlert\n| where TimeGenerated {TimeRange}\n| summarize Count=count() by ProviderName\n| sort by Count desc\n| take 15",
+        "size": 3,
+        "title": "Alerts by Source",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "piechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "alerts"
+      },
+      "customWidth": "50",
+      "name": "chart-alert-source"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Open incidents — deduplicated to current status\nunion isfuzzy=true SecurityIncident\n| where CreatedTime {TimeRange}\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where Status !in (\"Closed\", \"Resolved\")\n| extend AgeHours = datetime_diff('hour', now(), CreatedTime)\n| project CreatedTime, IncidentNumber, Title, Severity, Status, Owner=tostring(parse_json(Owner).userPrincipalName), AgeHours, IncidentUrl\n| sort by Severity asc, AgeHours desc",
+        "size": 0,
+        "title": "Open Incidents",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Severity",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Critical",
+                    "representation": "critical",
+                    "text": "Critical"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "High",
+                    "representation": "3",
+                    "text": "High"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Medium",
+                    "representation": "2",
+                    "text": "Medium"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "1",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "AgeHours",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "72",
+                    "representation": "redBright",
+                    "text": "{0}h ⚠️"
+                  },
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "24",
+                    "representation": "orange",
+                    "text": "{0}h"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}h"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "IncidentUrl",
+              "formatter": 7,
+              "formatOptions": {
+                "linkTarget": "Url",
+                "linkLabel": "Open"
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "alerts"
+      },
+      "name": "grid-open-incidents"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Recently resolved incidents\nunion isfuzzy=true SecurityIncident\n| where ClosedTime {TimeRange}\n| where Status in (\"Closed\", \"Resolved\")\n| extend MTTR_hrs = round(datetime_diff('minute', ClosedTime, CreatedTime) / 60.0, 1)\n| project ClosedTime, IncidentNumber, Title, Severity, Classification, MTTR_hrs, IncidentUrl\n| sort by ClosedTime desc\n| take 25",
+        "size": 0,
+        "title": "Recently Resolved Incidents",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "IncidentUrl",
+              "formatter": 7,
+              "formatOptions": {
+                "linkTarget": "Url",
+                "linkLabel": "Open"
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "alerts"
+      },
+      "name": "grid-resolved-incidents"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Email Threats\n> Draws from Mimecast (`CommonSecurityLog` where DeviceVendor=Mimecast, or `MimecastSEGEvent_CL`) and Microsoft Defender for Office 365 (`EmailEvents`). Uses `union isfuzzy=true` to handle whichever sources are connected.\n>\n> If all tiles show 0, run the Setup tab to confirm which email tables are populated in your workspace."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "email"
+      },
+      "name": "email-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Total blocked/rejected email threats from Mimecast and Defender for O365\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceAction has_any (\"Block\", \"Reject\", \"Hold\", \"block\", \"reject\", \"hold\")),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | where column_ifexists('action_s','') has_any (\"Block\", \"Reject\", \"Hold\")),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\"))\n| summarize ['Blocked Threats']=count()",
+        "size": 4,
+        "title": "Blocked Email Threats",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Blocked Threats",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "orange"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "email"
+      },
+      "customWidth": "25",
+      "name": "tile-blocked-threats"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Phishing-specific detections\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceEventClassID has_any (\"phish\", \"Phish\", \"spam\", \"Spam\")),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | where column_ifexists('type_s','') has_any (\"phish\", \"spam\")),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where ThreatTypes has \"Phish\")\n| summarize ['Phishing Detections']=count()",
+        "size": 4,
+        "title": "Phishing Detections",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Phishing Detections",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "email"
+      },
+      "customWidth": "25",
+      "name": "tile-phishing"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Malware detections in email\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceEventClassID has_any (\"malware\", \"Malware\", \"virus\", \"Virus\")),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | where column_ifexists('type_s','') has_any (\"malware\", \"virus\")),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where ThreatTypes has \"Malware\")\n| summarize ['Malware Detections']=count()",
+        "size": 4,
+        "title": "Malware in Email",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Malware Detections",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "email"
+      },
+      "customWidth": "25",
+      "name": "tile-email-malware"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Distinct users targeted by email threats\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceAction has_any (\"Block\", \"Reject\", \"Hold\", \"block\", \"reject\")\n     | extend TargetUser = column_ifexists('DestinationUserName', column_ifexists('DestinationEmailAddress', ''))\n     | where isnotempty(TargetUser)),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend TargetUser = column_ifexists('recipientAddress_s', ''))\n| summarize ['Users Targeted']=dcount(TargetUser)",
+        "size": 4,
+        "title": "Users Targeted",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Users Targeted",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "orange"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "email"
+      },
+      "customWidth": "25",
+      "name": "tile-users-targeted"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Email threat volume over time — Mimecast + Defender combined\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceAction has_any (\"Block\", \"Reject\", \"Hold\", \"block\", \"reject\")\n     | extend Source = \"Mimecast\"),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | where column_ifexists('action_s','') has_any (\"Block\", \"Reject\")\n     | extend Source = \"Mimecast (SEG)\"),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\")\n     | extend Source = \"Defender for O365\")\n| summarize Count=count() by bin(TimeGenerated, 1d), Source\n| sort by TimeGenerated asc",
+        "size": 0,
+        "title": "Email Threat Volume Over Time",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "email"
+      },
+      "customWidth": "60",
+      "name": "chart-email-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Email threat type breakdown\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceAction has_any (\"Block\", \"Reject\", \"Hold\", \"block\", \"reject\")\n     | extend ThreatType = column_ifexists('DeviceEventClassID', 'Unknown')),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend ThreatType = column_ifexists('type_s', 'Unknown')),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\")\n     | extend ThreatType = ThreatTypes)\n| summarize Count=count() by ThreatType\n| sort by Count desc\n| take 10",
+        "size": 3,
+        "title": "Threat Type Breakdown",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "piechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "email"
+      },
+      "customWidth": "40",
+      "name": "chart-email-threat-types"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Top 20 most targeted users by blocked email threat count\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceAction has_any (\"Block\", \"Reject\", \"Hold\", \"block\", \"reject\")\n     | extend TargetUser = column_ifexists('DestinationUserName', column_ifexists('DestinationEmailAddress', 'Unknown'))),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend TargetUser = column_ifexists('recipientAddress_s', 'Unknown')),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\")\n     | extend TargetUser = RecipientEmailAddress)\n| where TargetUser != \"Unknown\"\n| summarize ThreatCount=count() by TargetUser\n| sort by ThreatCount desc\n| take 20",
+        "size": 0,
+        "title": "Top 20 Most Targeted Users",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "email"
+      },
+      "name": "grid-top-targeted-users"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Trends\nExtend the time range to 30 or 90 days to see trajectory. These charts are the live equivalent of the trajectory section in a quarterly brief."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "trends"
+      },
+      "name": "trends-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly alert volume — all sources\nunion isfuzzy=true SecurityAlert\n| where TimeGenerated {TimeRange}\n| summarize Alerts=count() by bin(TimeGenerated, 7d)\n| sort by TimeGenerated asc",
+        "size": 0,
+        "title": "Weekly Alert Volume",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "trends"
+      },
+      "customWidth": "50",
+      "name": "chart-weekly-alerts"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly incident MTTR trend\nunion isfuzzy=true SecurityIncident\n| where ClosedTime {TimeRange}\n| where Status in (\"Closed\", \"Resolved\")\n| extend MTTR_hrs = datetime_diff('minute', ClosedTime, CreatedTime) / 60.0\n| summarize AvgMTTR=round(avg(MTTR_hrs), 1) by bin(ClosedTime, 7d)\n| sort by ClosedTime asc",
+        "size": 0,
+        "title": "Weekly Avg MTTR (hours)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "trends"
+      },
+      "customWidth": "50",
+      "name": "chart-mttr-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly high-risk device count - is exposure increasing or decreasing?\nunion isfuzzy=true DeviceInfo\n| where TimeGenerated {TimeRange}\n| where OnboardingStatus == \"Onboarded\"\n| extend RiskScore = column_ifexists('RiskScore', 'Unknown')\n| where RiskScore in (\"High\", \"Critical\")\n| summarize HighRiskDevices=dcount(DeviceId) by bin(TimeGenerated, 7d)\n| sort by TimeGenerated asc",
+        "size": 0,
+        "title": "Weekly High-Risk Device Count",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "trends"
+      },
+      "customWidth": "50",
+      "name": "chart-highrisk-device-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly risky sign-in trend — identity risk trajectory\nunion isfuzzy=true SigninLogs\n| where TimeGenerated {TimeRange}\n| where RiskLevelDuringSignIn in (\"high\", \"medium\")\n| summarize RiskySignIns=count() by bin(TimeGenerated, 7d)\n| sort by TimeGenerated asc",
+        "size": 0,
+        "title": "Weekly Risky Sign-ins",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "trends"
+      },
+      "customWidth": "50",
+      "name": "chart-risky-signin-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly P1/P2 incident creation trend\nunion isfuzzy=true SecurityIncident\n| where CreatedTime {TimeRange}\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where Severity in (\"Critical\", \"High\")\n| summarize P1P2Count=count() by bin(CreatedTime, 7d)\n| sort by CreatedTime asc",
+        "size": 0,
+        "title": "Weekly P1/P2 Incidents",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "trends"
+      },
+      "customWidth": "50",
+      "name": "chart-p1p2-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly blocked email threat volume\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceAction has_any (\"Block\", \"Reject\", \"block\", \"reject\")),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | where column_ifexists('action_s','') has_any (\"Block\", \"Reject\")),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\"))\n| summarize BlockedThreats=count() by bin(TimeGenerated, 7d)\n| sort by TimeGenerated asc",
+        "size": 0,
+        "title": "Weekly Blocked Email Threats",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "trends"
+      },
+      "customWidth": "50",
+      "name": "chart-email-trend-weekly"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Cloud Posture (AWS)\n> Sourced from `AWSGuardDuty` (security findings) and `AWSCloudTrail` (API audit logs) via the AWS S3 connector. GuardDuty severity is numeric: Low=1-3.9, Medium=4-6.9, High=7-10.\n>\n> CloudTrail tiles focus on high-signal events: root account usage, IAM privilege changes, and failed API calls. Extend the time range to 30 days to see trajectory."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "cloud"
+      },
+      "name": "cloud-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// GuardDuty high and critical severity findings\nunion isfuzzy=true AWSGuardDuty\n| where TimeGenerated {TimeRange}\n| where Severity >= 7.0\n| summarize ['GuardDuty High/Critical']=count()",
+        "size": 4,
+        "title": "GuardDuty High / Critical Findings",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "GuardDuty High/Critical",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "cloud"
+      },
+      "customWidth": "20",
+      "name": "tile-guardduty-high"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Root account usage — should be zero in a well-governed environment\nunion isfuzzy=true AWSCloudTrail\n| where TimeGenerated {TimeRange}\n| where UserIdentityType == \"Root\"\n| summarize ['Root Account Events']=count()",
+        "size": 4,
+        "title": "Root Account Events",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Root Account Events",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "cloud"
+      },
+      "customWidth": "20",
+      "name": "tile-root-usage"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// IAM privilege escalation events — user/role creation, policy attachment, access key creation\nunion isfuzzy=true AWSCloudTrail\n| where TimeGenerated {TimeRange}\n| where EventName in (\"CreateUser\", \"CreateRole\", \"AttachUserPolicy\", \"PutUserPolicy\",\n                      \"CreateAccessKey\", \"AddUserToGroup\", \"AttachRolePolicy\",\n                      \"PutRolePolicy\", \"CreateLoginProfile\", \"UpdateLoginProfile\")\n| summarize ['IAM Privilege Events']=count()",
+        "size": 4,
+        "title": "IAM Privilege Events",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "IAM Privilege Events",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "orange"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "cloud"
+      },
+      "customWidth": "20",
+      "name": "tile-iam-events"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Failed API calls — high volume may indicate credential stuffing or misconfigured services\nunion isfuzzy=true AWSCloudTrail\n| where TimeGenerated {TimeRange}\n| where isnotempty(ErrorCode)\n| summarize ['Failed API Calls']=count()",
+        "size": 4,
+        "title": "Failed API Calls",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Failed API Calls",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "orange"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "cloud"
+      },
+      "customWidth": "20",
+      "name": "tile-failed-api"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Distinct AWS accounts seen in GuardDuty findings\nunion isfuzzy=true AWSGuardDuty\n| where TimeGenerated {TimeRange}\n| summarize ['AWS Accounts in Scope']=dcount(AccountId)",
+        "size": 4,
+        "title": "AWS Accounts in Scope",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "AWS Accounts in Scope",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "cloud"
+      },
+      "customWidth": "20",
+      "name": "tile-aws-accounts"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// GuardDuty finding type breakdown — what categories of threats are being detected\nunion isfuzzy=true AWSGuardDuty\n| where TimeGenerated {TimeRange}\n| extend Category = tostring(split(Type, ':')[0])\n| summarize Count=count() by Category\n| sort by Count desc",
+        "size": 3,
+        "title": "GuardDuty Finding Categories",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "piechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "cloud"
+      },
+      "customWidth": "35",
+      "name": "chart-guardduty-categories"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// GuardDuty finding volume over time by severity band\nunion isfuzzy=true AWSGuardDuty\n| where TimeGenerated {TimeRange}\n| extend SeverityBand = case(\n    Severity >= 7.0, \"High\",\n    Severity >= 4.0, \"Medium\",\n    \"Low\")\n| summarize Count=count() by bin(TimeGenerated, 1d), SeverityBand\n| sort by TimeGenerated asc",
+        "size": 0,
+        "title": "GuardDuty Finding Trend",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "cloud"
+      },
+      "customWidth": "65",
+      "name": "chart-guardduty-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Active GuardDuty findings — prioritised by severity for triage\nunion isfuzzy=true AWSGuardDuty\n| where TimeGenerated {TimeRange}\n| where Severity >= 4.0\n| extend SeverityBand = case(\n    Severity >= 7.0, \"High\",\n    Severity >= 4.0, \"Medium\",\n    \"Low\")\n| extend AccountId = column_ifexists('AccountId', '')\n| extend Region    = column_ifexists('Region', '')\n| project TimeGenerated, Title, Type, SeverityBand, Severity, AccountId, Region\n| sort by Severity desc, TimeGenerated desc\n| take 50",
+        "size": 0,
+        "title": "Active GuardDuty Findings (Medium+)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "SeverityBand",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "High",
+                    "representation": "redBright",
+                    "text": "High"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Medium",
+                    "representation": "orange",
+                    "text": "Medium"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "cloud"
+      },
+      "name": "grid-guardduty-findings"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// CloudTrail — root account usage detail\nunion isfuzzy=true AWSCloudTrail\n| where TimeGenerated {TimeRange}\n| where UserIdentityType == \"Root\"\n| project TimeGenerated, EventName, EventSource, SourceIpAddress, AWSRegion, ErrorCode\n| sort by TimeGenerated desc\n| take 25",
+        "size": 0,
+        "title": "Root Account Usage Detail",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "ErrorCode",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "isNotEmpty",
+                    "thresholdValue": "",
+                    "representation": "3",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "success",
+                    "text": "Success"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "cloud"
+      },
+      "customWidth": "50",
+      "name": "grid-root-usage"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// CloudTrail — IAM privilege escalation events detail\nunion isfuzzy=true AWSCloudTrail\n| where TimeGenerated {TimeRange}\n| where EventName in (\"CreateUser\", \"CreateRole\", \"AttachUserPolicy\", \"PutUserPolicy\",\n                      \"CreateAccessKey\", \"AddUserToGroup\", \"AttachRolePolicy\",\n                      \"PutRolePolicy\", \"CreateLoginProfile\", \"UpdateLoginProfile\")\n| project TimeGenerated, EventName, UserIdentityArn, UserIdentityType, SourceIpAddress, AWSRegion, ErrorCode, AccountId=RecipientAccountId\n| sort by TimeGenerated desc\n| take 50",
+        "size": 0,
+        "title": "IAM Privilege Events Detail",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "ErrorCode",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "isNotEmpty",
+                    "thresholdValue": "",
+                    "representation": "3",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "success",
+                    "text": "Success"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "cloud"
+      },
+      "customWidth": "50",
+      "name": "grid-iam-events"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// CloudTrail — top error codes (failed API calls) — useful for spotting misconfigurations and brute force\nunion isfuzzy=true AWSCloudTrail\n| where TimeGenerated {TimeRange}\n| where isnotempty(ErrorCode)\n| summarize Count=count() by ErrorCode, EventSource\n| sort by Count desc\n| take 15",
+        "size": 0,
+        "title": "Top API Error Codes",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "cloud"
+      },
+      "customWidth": "50",
+      "name": "grid-api-errors"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// CloudTrail — S3 bucket configuration changes (data exfiltration risk)\nunion isfuzzy=true AWSCloudTrail\n| where TimeGenerated {TimeRange}\n| where EventSource == \"s3.amazonaws.com\"\n| where EventName in (\"PutBucketPolicy\", \"DeleteBucketPolicy\", \"PutBucketAcl\",\n                      \"PutBucketPublicAccessBlock\", \"DeleteBucketEncryption\",\n                      \"PutBucketCORS\", \"DeleteBucketCORS\")\n| project TimeGenerated, EventName, UserIdentityArn, SourceIpAddress, AWSRegion, AccountId=RecipientAccountId, ErrorCode\n| sort by TimeGenerated desc\n| take 25",
+        "size": 0,
+        "title": "S3 Bucket Configuration Changes",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "cloud"
+      },
+      "customWidth": "50",
+      "name": "grid-s3-changes"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Generative AI Usage\n> Data source: **`DeviceNetworkEvents`** (MDE endpoint DNS/network traffic). Requires MDE onboarding and network protection enabled on endpoints.\n>\n> **Domain list:** managed via Sentinel watchlist **`AI-App-Domains`** (SearchKey = `Domain`). To add apps detected in Cloud Discovery: update the watchlist CSV and re-import, or edit rows directly in Sentinel → Watchlists → AI-App-Domains.\n>\n> Risk scores: **Critical ≤ 2** (nation-state data residency risk, e.g. DeepSeek) · **High ≤ 4** (privacy or inappropriate content risk) · **Medium ≤ 6** (consumer tools, limited enterprise controls) · **Low ≤ 9** (enterprise-grade or Microsoft-native)\n>\n> If all panels are empty, verify the watchlist exists — see the **Setup & Validation** tab."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "ai-usage"
+      },
+      "name": "ai-usage-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// AI app domain map loaded from Sentinel watchlist 'AI-App-Domains'\n// To update: Defender portal or Sentinel > Watchlists > AI-App-Domains\nlet AIApps = union isfuzzy=true (_GetWatchlist('AI-App-Domains')\n    | project\n        Domain    = column_ifexists('Domain', SearchKey),\n        AppName   = column_ifexists('AppName', ''),\n        RiskScore = toint(column_ifexists('RiskScore', '6')),\n        Risk      = column_ifexists('Risk', 'Medium')\n    | where isnotempty(Domain));\nlet AppDomains = AIApps | project Domain;\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(TimeGenerated:datetime, RemoteUrl:string,\n               ActionType:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where TimeGenerated {TimeRange}\n| where ActionType != \"InboundInternetScanInspected\"\n| extend CleanHost = tolower(trim_start(@\"www.\", tostring(parse_url(RemoteUrl).Host)))\n| where isnotempty(CleanHost)\n// Extract 2-level (deepseek.com) and 3-level (gemini.google.com) domain suffixes\n| extend Domain2 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| extend Domain3 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| where Domain2 in (AppDomains) or Domain3 in (AppDomains)\n// Prefer the 3-level match when it exists in the app map\n| extend MatchDomain = iff(Domain3 in (AppDomains), Domain3, Domain2)\n| join kind=inner AIApps on $left.MatchDomain == $right.Domain\n| summarize ['AI Apps with Activity']=dcount(AppName)",
+        "size": 4,
+        "title": "AI Apps with Activity",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "AI Apps with Activity",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "ai-usage"
+      },
+      "customWidth": "20",
+      "name": "tile-ai-app-count"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// AI app domain map loaded from Sentinel watchlist 'AI-App-Domains'\n// To update: Defender portal or Sentinel > Watchlists > AI-App-Domains\nlet AIApps = union isfuzzy=true (_GetWatchlist('AI-App-Domains')\n    | project\n        Domain    = column_ifexists('Domain', SearchKey),\n        AppName   = column_ifexists('AppName', ''),\n        RiskScore = toint(column_ifexists('RiskScore', '6')),\n        Risk      = column_ifexists('Risk', 'Medium')\n    | where isnotempty(Domain));\nlet AppDomains = AIApps | project Domain;\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(TimeGenerated:datetime, RemoteUrl:string,\n               ActionType:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where TimeGenerated {TimeRange}\n| where ActionType != \"InboundInternetScanInspected\"\n| extend CleanHost = tolower(trim_start(@\"www.\", tostring(parse_url(RemoteUrl).Host)))\n| where isnotempty(CleanHost)\n// Extract 2-level (deepseek.com) and 3-level (gemini.google.com) domain suffixes\n| extend Domain2 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| extend Domain3 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| where Domain2 in (AppDomains) or Domain3 in (AppDomains)\n// Prefer the 3-level match when it exists in the app map\n| extend MatchDomain = iff(Domain3 in (AppDomains), Domain3, Domain2)\n| join kind=inner AIApps on $left.MatchDomain == $right.Domain\n| where RiskScore <= 4\n| summarize ['High-Risk AI Apps']=dcount(AppName)",
+        "size": 4,
+        "title": "High-Risk / Flagged AI Apps",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "High-Risk AI Apps",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "ai-usage"
+      },
+      "customWidth": "20",
+      "name": "tile-ai-high-risk-count"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// AI app domain map loaded from Sentinel watchlist 'AI-App-Domains'\n// To update: Defender portal or Sentinel > Watchlists > AI-App-Domains\nlet AIApps = union isfuzzy=true (_GetWatchlist('AI-App-Domains')\n    | project\n        Domain    = column_ifexists('Domain', SearchKey),\n        AppName   = column_ifexists('AppName', ''),\n        RiskScore = toint(column_ifexists('RiskScore', '6')),\n        Risk      = column_ifexists('Risk', 'Medium')\n    | where isnotempty(Domain));\nlet AppDomains = AIApps | project Domain;\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(TimeGenerated:datetime, RemoteUrl:string,\n               ActionType:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where TimeGenerated {TimeRange}\n| where ActionType != \"InboundInternetScanInspected\"\n| extend CleanHost = tolower(trim_start(@\"www.\", tostring(parse_url(RemoteUrl).Host)))\n| where isnotempty(CleanHost)\n// Extract 2-level (deepseek.com) and 3-level (gemini.google.com) domain suffixes\n| extend Domain2 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| extend Domain3 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| where Domain2 in (AppDomains) or Domain3 in (AppDomains)\n// Prefer the 3-level match when it exists in the app map\n| extend MatchDomain = iff(Domain3 in (AppDomains), Domain3, Domain2)\n| join kind=inner AIApps on $left.MatchDomain == $right.Domain\n| extend UserName = coalesce(\n    InitiatingProcessAccountUpn,\n    iff(isnotempty(InitiatingProcessAccountDomain),\n        strcat(InitiatingProcessAccountName, \"@\", InitiatingProcessAccountDomain),\n        InitiatingProcessAccountName)\n  )\n| where isnotempty(UserName)\n    and UserName !contains \"SYSTEM\"\n    and UserName !endswith \"$\"\n    and UserName !startswith \"NT AUTHORITY\"\n| summarize ['Users on AI Tools']=dcount(UserName)",
+        "size": 4,
+        "title": "Users Accessing AI Tools",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Users on AI Tools",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "orange"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "ai-usage"
+      },
+      "customWidth": "20",
+      "name": "tile-ai-user-count"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// AI app domain map loaded from Sentinel watchlist 'AI-App-Domains'\n// To update: Defender portal or Sentinel > Watchlists > AI-App-Domains\nlet AIApps = union isfuzzy=true (_GetWatchlist('AI-App-Domains')\n    | project\n        Domain    = column_ifexists('Domain', SearchKey),\n        AppName   = column_ifexists('AppName', ''),\n        RiskScore = toint(column_ifexists('RiskScore', '6')),\n        Risk      = column_ifexists('Risk', 'Medium')\n    | where isnotempty(Domain));\nlet AppDomains = AIApps | project Domain;\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(TimeGenerated:datetime, RemoteUrl:string,\n               ActionType:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where TimeGenerated {TimeRange}\n| where ActionType != \"InboundInternetScanInspected\"\n| extend CleanHost = tolower(trim_start(@\"www.\", tostring(parse_url(RemoteUrl).Host)))\n| where isnotempty(CleanHost)\n// Extract 2-level (deepseek.com) and 3-level (gemini.google.com) domain suffixes\n| extend Domain2 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| extend Domain3 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| where Domain2 in (AppDomains) or Domain3 in (AppDomains)\n// Prefer the 3-level match when it exists in the app map\n| extend MatchDomain = iff(Domain3 in (AppDomains), Domain3, Domain2)\n| join kind=inner AIApps on $left.MatchDomain == $right.Domain\n| extend UserName = coalesce(\n    InitiatingProcessAccountUpn,\n    iff(isnotempty(InitiatingProcessAccountDomain),\n        strcat(InitiatingProcessAccountName, \"@\", InitiatingProcessAccountDomain),\n        InitiatingProcessAccountName)\n  )\n| where isnotempty(UserName)\n    and UserName !contains \"SYSTEM\"\n    and UserName !endswith \"$\"\n    and UserName !startswith \"NT AUTHORITY\"\n| where RiskScore <= 4\n| summarize Connections=count(), Users=dcount(UserName), LastSeen=max(TimeGenerated) by AppName, Risk, RiskScore\n| sort by RiskScore asc, Connections desc\n| project AppName, Risk, ['Risk Score']=RiskScore, Connections, Users, LastSeen",
+        "size": 0,
+        "title": "High-Risk & Flagged AI Apps",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Risk",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Critical",
+                    "representation": "redBright",
+                    "text": "Critical"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "High",
+                    "representation": "orange",
+                    "text": "High"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Medium",
+                    "representation": "yellow",
+                    "text": "Medium"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "Risk Score",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "<=",
+                    "thresholdValue": "2",
+                    "representation": "redBright",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "<=",
+                    "thresholdValue": "4",
+                    "representation": "orange",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "<=",
+                    "thresholdValue": "6",
+                    "representation": "yellow",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "ai-usage"
+      },
+      "name": "ai-flagged-apps"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// AI app domain map loaded from Sentinel watchlist 'AI-App-Domains'\n// To update: Defender portal or Sentinel > Watchlists > AI-App-Domains\nlet AIApps = union isfuzzy=true (_GetWatchlist('AI-App-Domains')\n    | project\n        Domain    = column_ifexists('Domain', SearchKey),\n        AppName   = column_ifexists('AppName', ''),\n        RiskScore = toint(column_ifexists('RiskScore', '6')),\n        Risk      = column_ifexists('Risk', 'Medium')\n    | where isnotempty(Domain));\nlet AppDomains = AIApps | project Domain;\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(TimeGenerated:datetime, RemoteUrl:string,\n               ActionType:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where TimeGenerated {TimeRange}\n| where ActionType != \"InboundInternetScanInspected\"\n| extend CleanHost = tolower(trim_start(@\"www.\", tostring(parse_url(RemoteUrl).Host)))\n| where isnotempty(CleanHost)\n// Extract 2-level (deepseek.com) and 3-level (gemini.google.com) domain suffixes\n| extend Domain2 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| extend Domain3 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| where Domain2 in (AppDomains) or Domain3 in (AppDomains)\n// Prefer the 3-level match when it exists in the app map\n| extend MatchDomain = iff(Domain3 in (AppDomains), Domain3, Domain2)\n| join kind=inner AIApps on $left.MatchDomain == $right.Domain\n| extend UserName = coalesce(\n    InitiatingProcessAccountUpn,\n    iff(isnotempty(InitiatingProcessAccountDomain),\n        strcat(InitiatingProcessAccountName, \"@\", InitiatingProcessAccountDomain),\n        InitiatingProcessAccountName)\n  )\n| where isnotempty(UserName)\n    and UserName !contains \"SYSTEM\"\n    and UserName !endswith \"$\"\n    and UserName !startswith \"NT AUTHORITY\"\n| summarize Connections=count(), Users=dcount(UserName), LastSeen=max(TimeGenerated) by AppName, Risk, RiskScore\n| sort by RiskScore asc, Connections desc\n| project AppName, Risk, ['Risk Score']=RiskScore, Connections, Users, LastSeen",
+        "size": 0,
+        "title": "All AI Apps (sorted by risk)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Risk",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Critical",
+                    "representation": "redBright",
+                    "text": "Critical"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "High",
+                    "representation": "orange",
+                    "text": "High"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Medium",
+                    "representation": "yellow",
+                    "text": "Medium"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "Risk Score",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "<=",
+                    "thresholdValue": "2",
+                    "representation": "redBright",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "<=",
+                    "thresholdValue": "4",
+                    "representation": "orange",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "<=",
+                    "thresholdValue": "6",
+                    "representation": "yellow",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "ai-usage"
+      },
+      "name": "ai-all-apps"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// AI app domain map loaded from Sentinel watchlist 'AI-App-Domains'\n// To update: Defender portal or Sentinel > Watchlists > AI-App-Domains\nlet AIApps = union isfuzzy=true (_GetWatchlist('AI-App-Domains')\n    | project\n        Domain    = column_ifexists('Domain', SearchKey),\n        AppName   = column_ifexists('AppName', ''),\n        RiskScore = toint(column_ifexists('RiskScore', '6')),\n        Risk      = column_ifexists('Risk', 'Medium')\n    | where isnotempty(Domain));\nlet AppDomains = AIApps | project Domain;\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(TimeGenerated:datetime, RemoteUrl:string,\n               ActionType:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where TimeGenerated {TimeRange}\n| where ActionType != \"InboundInternetScanInspected\"\n| extend CleanHost = tolower(trim_start(@\"www.\", tostring(parse_url(RemoteUrl).Host)))\n| where isnotempty(CleanHost)\n// Extract 2-level (deepseek.com) and 3-level (gemini.google.com) domain suffixes\n| extend Domain2 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| extend Domain3 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| where Domain2 in (AppDomains) or Domain3 in (AppDomains)\n// Prefer the 3-level match when it exists in the app map\n| extend MatchDomain = iff(Domain3 in (AppDomains), Domain3, Domain2)\n| join kind=inner AIApps on $left.MatchDomain == $right.Domain\n| extend UserName = coalesce(\n    InitiatingProcessAccountUpn,\n    iff(isnotempty(InitiatingProcessAccountDomain),\n        strcat(InitiatingProcessAccountName, \"@\", InitiatingProcessAccountDomain),\n        InitiatingProcessAccountName)\n  )\n| where isnotempty(UserName)\n    and UserName !contains \"SYSTEM\"\n    and UserName !endswith \"$\"\n    and UserName !startswith \"NT AUTHORITY\"\n| summarize\n    ['AI Tools Used']=dcount(AppName),\n    ['High-Risk Apps']=dcountif(AppName, RiskScore <= 4),\n    Connections=count(),\n    LastSeen=max(TimeGenerated)\n  by User=UserName\n| sort by ['High-Risk Apps'] desc, ['AI Tools Used'] desc\n| take 25",
+        "size": 0,
+        "title": "Top Users by AI App Activity",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "High-Risk Apps",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">=",
+                    "thresholdValue": "1",
+                    "representation": "redBright",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "ai-usage"
+      },
+      "name": "ai-top-users"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// AI app domain map loaded from Sentinel watchlist 'AI-App-Domains'\n// To update: Defender portal or Sentinel > Watchlists > AI-App-Domains\nlet AIApps = union isfuzzy=true (_GetWatchlist('AI-App-Domains')\n    | project\n        Domain    = column_ifexists('Domain', SearchKey),\n        AppName   = column_ifexists('AppName', ''),\n        RiskScore = toint(column_ifexists('RiskScore', '6')),\n        Risk      = column_ifexists('Risk', 'Medium')\n    | where isnotempty(Domain));\nlet AppDomains = AIApps | project Domain;\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(TimeGenerated:datetime, RemoteUrl:string,\n               ActionType:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where TimeGenerated {TimeRange}\n| where ActionType != \"InboundInternetScanInspected\"\n| extend CleanHost = tolower(trim_start(@\"www.\", tostring(parse_url(RemoteUrl).Host)))\n| where isnotempty(CleanHost)\n// Extract 2-level (deepseek.com) and 3-level (gemini.google.com) domain suffixes\n| extend Domain2 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| extend Domain3 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| where Domain2 in (AppDomains) or Domain3 in (AppDomains)\n// Prefer the 3-level match when it exists in the app map\n| extend MatchDomain = iff(Domain3 in (AppDomains), Domain3, Domain2)\n| join kind=inner AIApps on $left.MatchDomain == $right.Domain\n| summarize Connections=count() by bin(TimeGenerated, 1d), AppName\n| sort by TimeGenerated asc",
+        "size": 0,
+        "title": "AI App Usage Trend (daily connections by app)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "barchart",
+        "chartSettings": {
+          "xAxis": "TimeGenerated",
+          "yAxis": [
+            "Connections"
+          ],
+          "seriesLabelSettings": [],
+          "xAxisWasDefault": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "ai-usage"
+      },
+      "name": "ai-usage-trend"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## MCP Registry Activity\n> **Model Context Protocol (MCP)** registries are marketplaces where users discover and install MCP servers — plugins that give AI assistants direct access to files, databases, APIs, and system tools.\n>\n> Visits to these sites indicate active exploration or installation of AI agent capabilities. This is not inherently malicious, but warrants awareness: installed MCPs run with the permissions of the user and can exfiltrate data through any connected AI backend.\n>\n> **Known high-risk MCP servers** (prompt injection, credential harvesting) have been documented against smithery.ai and composio.dev — review any sustained usage, especially from non-developer roles."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "ai-usage"
+      },
+      "name": "mcp-section-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// MCP Registry and Hosting Platform Activity\n// Filters watchlist to entries tagged 'MCP Registry' or 'MCP Host' or 'MCP Hub'\n// Intent signal: browsing these sites indicates active MCP discovery or installation\nlet AIApps = union isfuzzy=true (_GetWatchlist('AI-App-Domains')\n    | project\n        Domain    = column_ifexists('Domain', SearchKey),\n        AppName   = column_ifexists('AppName', ''),\n        RiskScore = toint(column_ifexists('RiskScore', '6')),\n        Risk      = column_ifexists('Risk', 'Medium')\n    | where isnotempty(Domain)\n    | where AppName startswith \"MCP\");\nlet AppDomains = AIApps | project Domain;\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(TimeGenerated:datetime, RemoteUrl:string,\n               ActionType:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where TimeGenerated {TimeRange}\n| where ActionType != \"InboundInternetScanInspected\"\n| extend CleanHost = tolower(trim_start(@\"www.\", tostring(parse_url(RemoteUrl).Host)))\n| where isnotempty(CleanHost)\n| extend Domain2 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| extend Domain3 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| where Domain2 in (AppDomains) or Domain3 in (AppDomains)\n| extend MatchDomain = iff(Domain3 in (AppDomains), Domain3, Domain2)\n| join kind=inner AIApps on $left.MatchDomain == $right.Domain\n| summarize\n    LastSeen    = max(TimeGenerated),\n    TotalHits   = count(),\n    DaysActive  = dcount(bin(TimeGenerated, 1d))\n    by User = InitiatingProcessAccountUpn, Registry = AppName, Device = DeviceName\n| sort by LastSeen desc",
+        "size": 0,
+        "title": "MCP Registry Visits by User",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Registry",
+              "formatter": 1
+            },
+            {
+              "columnMatch": "TotalHits",
+              "formatter": 4,
+              "formatOptions": {
+                "palette": "blue"
+              }
+            },
+            {
+              "columnMatch": "DaysActive",
+              "formatter": 4,
+              "formatOptions": {
+                "palette": "orange"
+              }
+            }
+          ],
+          "rowLimit": 100
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "ai-usage"
+      },
+      "name": "mcp-registry-table"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Setup & Validation\n\n### VIB Q1 2026 Readiness — Workbook Coverage Map\nThe table below maps each item from the VIB Section 6 readiness assessment to the workbook panel that provides live monitoring coverage.\n\n| VIB Readiness Item | Workbook Coverage | Tab |\n|---|---|---|\n| Cisco Firewall CVE-2026-20131 (CVSS 10.0) | VIB Priority CVE grid | Vulnerabilities |\n| Ivanti EPMM CVE-2026-1281/1340 (CVSS 9.8) | VIB Priority CVE grid | Vulnerabilities |\n| BeyondTrust CVE-2026-1731 (CVSS 9.9) | VIB Priority CVE grid | Vulnerabilities |\n| Oracle EBS CVE-2025-61882 (Cl0p/FIN11) | VIB Priority CVE grid — note: Oracle EBS may not be in MDE scope | Vulnerabilities |\n| ShinyHunters vishing / MFA bypass | Credential Reset → Immediate Login grid | Identity |\n| Cisco SD-WAN CVE-2026-20127 | VIB Priority CVE grid + CISA KEV matches | Vulnerabilities |\n| n8n RCE CVE-2026-21858 (CVSS 10.0) | VIB Priority CVE grid | Vulnerabilities |\n| Fortinet FortiOS CVE-2026-24858 (CVSS 9.4) | VIB Priority CVE grid | Vulnerabilities |\n| Volt/Salt Typhoon research IP theft | No automated detection available — manual review required | — |\n| Supply chain / third-party vendor risk | No automated detection available — vendor audit process | — |\n| Ransomware (Qilin, INC Ransom, DragonForce) | Open Alerts grid (SecurityAlert from all sources) | Overview / Alerts |\n| AiTM phishing (REN-ISAC advisory) | AiTM Phishing Indicators grid | Identity |\n| MongoDB CVE-2025-14847 | VIB Priority CVE grid | Vulnerabilities |\n| SOCI mandatory reporting (since Jan 2026) | Process control — not automatable via Sentinel | — |\n\n> **Note on CVE detection scope:** MDE TVM only covers devices onboarded to MDE. Network appliances (Cisco, Fortinet) and server-side platforms (Oracle EBS, n8n, MongoDB) may not be in MDE scope. Cross-reference the Device Risk tab's coverage gap grid with the priority CVE list.\n\nRun these queries once after configuring connectors. Results confirm which tables are populating and let you verify the workbook will return data.\n\n### Step 1: MDE — confirm DeviceInfo and TVM tables are populating"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Step 1a: MDE DeviceInfo — confirm devices are reporting\nunion isfuzzy=true DeviceInfo\n| where TimeGenerated > ago(3d)\n| summarize DeviceCount=dcount(DeviceId), LatestRecord=max(TimeGenerated), OnboardedCount=dcountif(DeviceId, OnboardingStatus == \"Onboarded\")",
+        "size": 0,
+        "title": "Step 1a: MDE DeviceInfo Status",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "customWidth": "50",
+      "name": "setup-deviceinfo"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Step 1b: MDE TVM — confirm vulnerability data is present\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(3d)\n| summarize CVECount=dcount(CveId), DeviceCount=dcount(DeviceId), LatestRecord=max(TimeGenerated)",
+        "size": 0,
+        "title": "Step 1b: MDE TVM Status",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "customWidth": "50",
+      "name": "setup-tvm"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Step 2: Okta — confirm which table your connector creates"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-okta-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Step 2: Detect Okta table variant in this workspace\nunion isfuzzy=true\n    (Okta_CL  | where TimeGenerated > ago(3d) | summarize RowCount=count(), Latest=max(TimeGenerated) | extend TableName='Okta_CL'),\n    (OktaSSO  | where TimeGenerated > ago(3d) | summarize RowCount=count(), Latest=max(TimeGenerated) | extend TableName='OktaSSO')\n| where RowCount > 0\n| project TableName, RowCount, Latest\n| sort by Latest desc",
+        "size": 0,
+        "title": "Step 2: Okta Tables Detected",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "customWidth": "50",
+      "name": "setup-okta-tables"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Step 2b: Sample Okta events - confirm field names\nunion isfuzzy=true\n    (Okta_CL  | where TimeGenerated > ago(1d) | take 3),\n    (OktaSSO  | where TimeGenerated > ago(1d) | take 3)\n| take 5",
+        "size": 0,
+        "title": "Step 2b: Okta Sample Records",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "customWidth": "50",
+      "name": "setup-okta-sample"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Step 3: Mimecast — confirm table variant"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-mimecast-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Step 3a: Mimecast via CommonSecurityLog\nunion isfuzzy=true CommonSecurityLog\n| where TimeGenerated > ago(3d)\n| where DeviceVendor =~ \"Mimecast\"\n| summarize RowCount=count(), LatestRecord=max(TimeGenerated) by DeviceVendor, DeviceProduct",
+        "size": 0,
+        "title": "Step 3a: Mimecast in CommonSecurityLog",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "customWidth": "50",
+      "name": "setup-mimecast-csl"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Step 3b: Mimecast native tables (SEG connector)\nsearch *\n| where TimeGenerated > ago(3d)\n| where _TableName startswith \"Mimecast\"\n| summarize RowCount=count(), LatestRecord=max(TimeGenerated) by TableName=_TableName\n| sort by LatestRecord desc",
+        "size": 0,
+        "title": "Step 3b: Mimecast Native Tables",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "customWidth": "50",
+      "name": "setup-mimecast-native"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Step 4: Verify CISA KEV watchlist and Entra sign-in data"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-step4-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Step 4a: CISA-KEV watchlist\nunion isfuzzy=true _GetWatchlist('CISA-KEV')\n| summarize TotalEntries=count(), Latest=max(column_ifexists('dateAdded',''))",
+        "size": 0,
+        "title": "Step 4a: CISA-KEV Watchlist Status",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "customWidth": "50",
+      "name": "setup-kev-watchlist"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Step 4b: Entra ID SigninLogs — confirm risk data is present\nunion isfuzzy=true SigninLogs\n| where TimeGenerated > ago(3d)\n| summarize Total=count(), WithRisk=countif(RiskLevelDuringSignIn != \"none\" and RiskLevelDuringSignIn != \"\"), LatestRecord=max(TimeGenerated)",
+        "size": 0,
+        "title": "Step 4b: SigninLogs Status",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "customWidth": "50",
+      "name": "setup-signinlogs"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// AI-App-Domains watchlist status\nunion isfuzzy=true (_GetWatchlist('AI-App-Domains'))\n| project\n    Domain    = column_ifexists('Domain', SearchKey),\n    AppName   = column_ifexists('AppName', ''),\n    RiskScore = column_ifexists('RiskScore', ''),\n    Risk      = column_ifexists('Risk', '')\n| where isnotempty(Domain)\n| summarize TotalDomains=count(), Critical=countif(Risk == 'Critical'),\n    High=countif(Risk == 'High'), Medium=countif(Risk == 'Medium'),\n    Low=countif(Risk == 'Low')",
+        "size": 0,
+        "title": "AI-App-Domains Watchlist Status",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-ai-domains-watchlist"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n### Notes\n\n**Okta table names** depend on the connector version:\n- Legacy DCR: `Okta_CL` — column names use `camelCase_s` suffix\n- CCP (newer): `OktaSSO` — column names are clean (no suffix)\n\nAll Identity tab queries use `union isfuzzy=true` to handle both. If you see unexpected nulls, check which table is active from Step 2 above and verify the column names with `getschema Okta_CL`.\n\n**Mimecast table names** depend on the connector:\n- Via CEF/Syslog: `CommonSecurityLog | where DeviceVendor =~ \"Mimecast\"`\n- Via Mimecast SEG connector: `MimecastSEGEvent_CL`\n\n**Entra ID risk data** (`RiskLevelDuringSignIn`) requires Azure AD Identity Protection P2 licence. Without it the column exists but all values are `none`.\n\n**DeviceTvmSoftwareVulnerabilities** may have a lag of up to 24 hours from MDE. Query `ago(2d)` if data appears sparse."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-notes"
+    }
+  ],
+  "fallbackResourceIds": [
+    "/subscriptions/19f0e8be-c471-41e7-8ec0-69998a50a129/resourcegroups/rg-sentinel-ae/providers/microsoft.operationalinsights/workspaces/uon-la-sentinel-staff"
+  ],
+  "fromTemplateId": "sentinel-UserWorkbook",
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
