@@ -4,7 +4,7 @@
     {
       "type": 1,
       "content": {
-        "json": "# University of Newcastle — Cybersecurity Posture Dashboard (Native)\n**Classification: TLP:AMBER — Internal use only**\n\n> This workbook uses Microsoft Defender for Endpoint (MDE), Okta, Mimecast, and native Sentinel tables. No Armis connector required.\n>\n> **Required connectors:** MDE (`DeviceInfo`, `DeviceTvmSoftwareVulnerabilities`), Okta (`Okta_CL` or `OktaSSO`), Mimecast (`CommonSecurityLog` or `MimecastSEGEvent_CL`), Entra ID (`SigninLogs`), and standard Sentinel tables.\n>\n> **CISA KEV:** The Vulnerabilities tab requires a Sentinel Watchlist named `CISA-KEV` with `cveID` as the SearchKey. See the Setup tab for import instructions."
+        "json": "# University of Newcastle — Cybersecurity Posture Dashboard (Native)\n**Classification: TLP:AMBER — Internal use only**\n\n> This workbook uses Microsoft Defender for Endpoint (MDE), Okta, Mimecast, and native Sentinel tables. No Armis connector required.\n>\n> **Required connectors:** MDE (`DeviceInfo`, `DeviceTvmSoftwareVulnerabilities`), Okta (`Okta_CL` or `OktaSSO`), Mimecast (`CommonSecurityLog`, `MimecastSEGEvent_CL`, `MimecastSIEM_CL`, or `MimecastDLP`), Entra ID (`SigninLogs`), and standard Sentinel tables.\n>\n> **CISA KEV:** The Vulnerabilities tab requires a Sentinel Watchlist named `CISA-KEV` with `cveID` as the SearchKey. See the Setup tab for import instructions."
       },
       "name": "header-text"
     },
@@ -225,7 +225,94 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// CISA KEV CVEs present in MDE device inventory\n// Requires CISA-KEV watchlist with cveID as SearchKey\nlet KEV = union isfuzzy=true (_GetWatchlist('CISA-KEV') | project cveID=SearchKey);\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| where isnotempty(CveId)\n| where CveId in (KEV)\n| summarize ['KEV Matches']=dcount(CveId)",
+        "query": "// Total distinct open CVEs in MDE TVM (latest state, no KEV filter)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| summarize ['Total Open CVEs (MDE)'] = dcount(CveIdNorm)",
+        "size": 4,
+        "title": "Total Open CVEs (MDE)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Total Open CVEs (MDE)",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "16",
+      "name": "tile-total-cves"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Critical-severity CVEs in MDE TVM (latest state)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| where VulnerabilitySeverityLevel == \"Critical\"\n| summarize ['Critical CVEs (MDE)'] = dcount(CveIdNorm)",
+        "size": 4,
+        "title": "Critical CVEs (MDE)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Critical CVEs (MDE)",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "16",
+      "name": "tile-critical-cves"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// High-severity CVEs in MDE TVM (latest state)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| where VulnerabilitySeverityLevel == \"High\"\n| summarize ['High CVEs (MDE)'] = dcount(CveIdNorm)",
+        "size": 4,
+        "title": "High CVEs (MDE)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "High CVEs (MDE)",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "orange"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "16",
+      "name": "tile-high-cves"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// CISA KEV CVEs present in MDE device inventory (latest state per device+CVE)\nlet TVMLookback = 90d;\nlet KEV = _GetWatchlist('CISA-KEV')\n| extend cveID = toupper(trim(tostring(column_ifexists('cveID', column_ifexists('CVE', tostring(SearchKey))))))\n| where cveID startswith 'CVE-'\n| distinct cveID;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| where CveIdNorm in (KEV | project cveID)\n| summarize ['KEV Matches'] = dcount(CveIdNorm)",
         "size": 4,
         "title": "CISA KEV Matches (MDE)",
         "queryType": 0,
@@ -254,7 +341,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// VIB Q1 2026 priority CVEs detected in MDE device inventory\n// Source: UoN Vulnerability Intelligence Brief Q1 2026, Section 3.1\nlet PriorityCVEs = dynamic([\"CVE-2026-20131\",\"CVE-2026-1731\",\"CVE-2026-1281\",\"CVE-2026-1340\",\"CVE-2026-24858\",\"CVE-2026-21858\",\"CVE-2025-61882\",\"CVE-2025-14847\"]);\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| where CveId in (PriorityCVEs)\n| summarize ['VIB Priority CVEs Present']=dcount(CveId)",
+        "query": "// VIB Q1 2026 priority CVEs — fixed list; 0 = none of these CVEs in estate (often expected)\nlet TVMLookback = 90d;\nlet PriorityCVEs = dynamic([\"CVE-2026-20131\",\"CVE-2026-1731\",\"CVE-2026-1281\",\"CVE-2026-1340\",\"CVE-2026-24858\",\"CVE-2026-21858\",\"CVE-2025-61882\",\"CVE-2025-14847\"]);\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| where CveIdNorm in (PriorityCVEs)\n| summarize ['VIB Priority CVEs Present'] = dcount(CveIdNorm)",
         "size": 4,
         "title": "VIB Q1 Priority CVEs in Environment",
         "queryType": 0,
@@ -680,7 +767,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## Vulnerabilities & CISA KEV Coverage\n> **VIB Q1 2026 priority CVEs** (Section 3.1 — check the first grid below for these specifically):\n> Cisco Firewall CVE-2026-20131 (CVSS 10.0, Interlock ransomware) · BeyondTrust CVE-2026-1731 (9.9) · Ivanti EPMM CVE-2026-1281/1340 (9.8, MDM) · Fortinet CVE-2026-24858 (9.4) · n8n CVE-2026-21858 (10.0) · Oracle EBS CVE-2025-61882 (Cl0p/FIN11 campaign) · MongoDB CVE-2025-14847 (active AU exploitation)\n>\n> CVE data sourced from MDE Threat & Vulnerability Management (`DeviceTvmSoftwareVulnerabilities`). KEV tiles require the `CISA-KEV` watchlist. See the Setup tab."
+        "json": "## Vulnerabilities & CISA KEV Coverage\n> **VIB Q1 2026 priority CVEs** (Section 3.1 — check the first grid below for these specifically):\n> Cisco Firewall CVE-2026-20131 (CVSS 10.0, Interlock ransomware) · BeyondTrust CVE-2026-1731 (9.9) · Ivanti EPMM CVE-2026-1281/1340 (9.8, MDM) · Fortinet CVE-2026-24858 (9.4) · n8n CVE-2026-21858 (10.0) · Oracle EBS CVE-2025-61882 (Cl0p/FIN11 campaign) · MongoDB CVE-2025-14847 (active AU exploitation)\n>\n> CVE data sourced from MDE Threat & Vulnerability Management (`DeviceTvmSoftwareVulnerabilities`) in **Log Analytics**. Panels use the latest record per device+CVE (90-day lookback), not only rows in the workbook time range.\n>\n> **Reading zero counts:** If **Total Open CVEs** (Overview) is > 0 but **KEV Matches** or **VIB Priority** grids are empty, filters matched nothing — not a broken query. KEV = overlap with your estate; VIB grid = fixed CVE-2026-* list (often 0 if those CVEs are not in your environment). Run **Setup → Step 1c** for total vs KEV overlap.\n>\n> **MDE portal vs Sentinel:** If **all** TVM panels including Total Open CVEs are 0, TVM may not be in this Log Analytics workspace — run **Setup → Step 1b**."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -693,9 +780,27 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let PriorityCVEs = dynamic([\n    \"CVE-2026-20131\",\n    \"CVE-2026-1731\",\n    \"CVE-2026-1281\",\n    \"CVE-2026-1340\",\n    \"CVE-2026-24858\",\n    \"CVE-2026-21858\",\n    \"CVE-2025-61882\",\n    \"CVE-2025-14847\"\n]);\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| where CveId in (PriorityCVEs)\n| project CveId, SoftwareName, SoftwareVendor, VulnerabilitySeverityLevel, DeviceName\n| sort by VulnerabilitySeverityLevel asc",
+        "query": "// MDE exposure summary — unfiltered totals (compare to KEV / VIB panels below)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nlet KEV = _GetWatchlist('CISA-KEV')\n| extend cveID = toupper(trim(tostring(column_ifexists('cveID', column_ifexists('CVE', tostring(SearchKey))))))\n| where cveID startswith 'CVE-'\n| distinct cveID;\nTVM\n| summarize\n    ['Distinct CVEs'] = dcount(CveIdNorm),\n    ['Device-CVE pairs'] = count(),\n    Devices = dcount(DeviceId),\n    Critical = dcountif(CveIdNorm, VulnerabilitySeverityLevel == 'Critical'),\n    High = dcountif(CveIdNorm, VulnerabilitySeverityLevel == 'High'),\n    ['KEV CVEs in estate'] = dcountif(CveIdNorm, CveIdNorm in (KEV | project cveID)),\n    ['Latest TVM record'] = max(TimeGenerated)",
         "size": 0,
-        "title": "VIB Q1 2026 Priority CVE Exposure (Section 3.1)",
+        "title": "MDE TVM Exposure Summary (all CVEs)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "name": "grid-tvm-summary"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let TVMLookback = 90d;\nlet PriorityCVEs = dynamic([\n    \"CVE-2026-20131\",\n    \"CVE-2026-1731\",\n    \"CVE-2026-1281\",\n    \"CVE-2026-1340\",\n    \"CVE-2026-24858\",\n    \"CVE-2026-21858\",\n    \"CVE-2025-61882\",\n    \"CVE-2025-14847\"\n]);\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| where CveIdNorm in (PriorityCVEs)\n| project CveId = CveIdNorm, SoftwareName, SoftwareVendor, VulnerabilitySeverityLevel, DeviceName, LastSeen = TimeGenerated\n| sort by VulnerabilitySeverityLevel asc",
+        "size": 0,
+        "title": "VIB Q1 2026 Priority CVE Exposure (empty = not in estate)",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
         "visualization": "table",
@@ -741,7 +846,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Devices matching CISA KEV entries — join MDE TVM with watchlist\nlet KEV = union isfuzzy=true (_GetWatchlist('CISA-KEV')\n    | project cveID=SearchKey,\n              vendorProject   = column_ifexists('vendorProject', ''),\n              product         = column_ifexists('product', ''),\n              dateAdded       = column_ifexists('dateAdded', ''),\n              dueDate         = column_ifexists('dueDate', ''),\n              knownRansomware = column_ifexists('knownRansomwareCampaignUse', ''));\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| where isnotempty(CveId)\n| join kind=inner KEV on $left.CveId == $right.cveID\n| extend RansomwareFlag = iff(knownRansomware == \"Known\", \"Ransomware\", \"\")\n| extend DaysUntilDue   = iff(isnotempty(dueDate), datetime_diff('day', todatetime(dueDate), now()), int(null))\n| project CveId, SoftwareVendor, SoftwareName, VulnerabilitySeverityLevel, DeviceName, dateAdded, dueDate, DaysUntilDue, RansomwareFlag\n| sort by DaysUntilDue asc",
+        "query": "// Devices matching CISA KEV entries — latest TVM state joined to watchlist (normalized CVE IDs)\nlet TVMLookback = 90d;\nlet KEV = _GetWatchlist('CISA-KEV')\n| extend cveID = toupper(trim(tostring(column_ifexists('cveID', column_ifexists('CVE', tostring(SearchKey))))))\n| where cveID startswith 'CVE-'\n| project cveID,\n          vendorProject   = column_ifexists('vendorProject', ''),\n          product         = column_ifexists('product', ''),\n          dateAdded       = column_ifexists('dateAdded', ''),\n          dueDate         = column_ifexists('dueDate', ''),\n          knownRansomware = column_ifexists('knownRansomwareCampaignUse', '');\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| join kind=inner KEV on $left.CveIdNorm == $right.cveID\n| extend RansomwareFlag = iff(knownRansomware == \"Known\", \"Ransomware\", \"\")\n| extend DaysUntilDue   = iff(isnotempty(dueDate), datetime_diff('day', todatetime(dueDate), now()), int(null))\n| project CveId = CveIdNorm, SoftwareVendor, SoftwareName, VulnerabilitySeverityLevel, DeviceName, dateAdded, dueDate, DaysUntilDue, RansomwareFlag, LastSeen = TimeGenerated\n| sort by DaysUntilDue asc",
         "size": 0,
         "title": "Devices Matching CISA KEV Entries",
         "queryType": 0,
@@ -839,7 +944,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// KEV exposure by software vendor\nlet KEV = union isfuzzy=true (_GetWatchlist('CISA-KEV') | project cveID=SearchKey, vendorProject=column_ifexists('vendorProject','Unknown'));\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| where isnotempty(CveId)\n| join kind=inner KEV on $left.CveId == $right.cveID\n| summarize CVECount=dcount(CveId) by vendorProject\n| sort by CVECount desc\n| take 15",
+        "query": "// KEV exposure by software vendor (latest TVM state)\nlet TVMLookback = 90d;\nlet KEV = _GetWatchlist('CISA-KEV')\n| extend cveID = toupper(trim(tostring(column_ifexists('cveID', column_ifexists('CVE', tostring(SearchKey))))))\n| where cveID startswith 'CVE-'\n| project cveID, vendorProject = column_ifexists('vendorProject', 'Unknown');\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| join kind=inner KEV on $left.CveIdNorm == $right.cveID\n| summarize CVECount = dcount(CveIdNorm) by vendorProject\n| sort by CVECount desc\n| take 15",
         "size": 3,
         "title": "KEV Exposure by Vendor",
         "queryType": 0,
@@ -858,7 +963,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// CVE severity distribution across all MDE-managed devices\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| summarize DeviceCount=dcount(DeviceId) by VulnerabilitySeverityLevel\n| sort by DeviceCount desc",
+        "query": "// CVE severity distribution across all MDE-managed devices (latest state)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| summarize DeviceCount = dcount(DeviceId) by VulnerabilitySeverityLevel\n| sort by DeviceCount desc",
         "size": 3,
         "title": "Devices by CVE Severity (MDE TVM)",
         "queryType": 0,
@@ -877,7 +982,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Most vulnerable devices — ranked by critical CVE count\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| summarize\n    TotalCVEs    = dcount(CveId),\n    CriticalCVEs = dcountif(CveId, VulnerabilitySeverityLevel == \"Critical\"),\n    HighCVEs     = dcountif(CveId, VulnerabilitySeverityLevel == \"High\")\n  by DeviceName\n| sort by CriticalCVEs desc, HighCVEs desc\n| take 25",
+        "query": "// Most vulnerable devices — ranked by critical CVE count (latest state)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| summarize\n    TotalCVEs    = dcount(CveIdNorm),\n    CriticalCVEs = dcountif(CveIdNorm, VulnerabilitySeverityLevel == \"Critical\"),\n    HighCVEs     = dcountif(CveIdNorm, VulnerabilitySeverityLevel == \"High\")\n  by DeviceName\n| sort by CriticalCVEs desc, HighCVEs desc\n| take 25",
         "size": 0,
         "title": "Most Vulnerable Devices (by CVE Count)",
         "queryType": 0,
@@ -926,7 +1031,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// KEV dwell time — days since each matched CVE was added to CISA KEV list\nlet KEV = union isfuzzy=true (_GetWatchlist('CISA-KEV')\n    | project cveID=SearchKey,\n              vendorProject = column_ifexists('vendorProject', 'Unknown'),\n              dateAdded     = column_ifexists('dateAdded', ''));\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| join kind=inner KEV on $left.CveId == $right.cveID\n| extend DwellDays = iff(isnotempty(dateAdded), datetime_diff('day', now(), todatetime(dateAdded)), int(null))\n| summarize DwellDays=max(DwellDays), AffectedDevices=dcount(DeviceId) by CveId, vendorProject\n| sort by DwellDays desc\n| take 25",
+        "query": "// KEV dwell time — days since each matched CVE was added to CISA KEV list\nlet TVMLookback = 90d;\nlet KEV = _GetWatchlist('CISA-KEV')\n| extend cveID = toupper(trim(tostring(column_ifexists('cveID', column_ifexists('CVE', tostring(SearchKey))))))\n| where cveID startswith 'CVE-'\n| project cveID,\n          vendorProject = column_ifexists('vendorProject', 'Unknown'),\n          dateAdded     = column_ifexists('dateAdded', '');\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| join kind=inner KEV on $left.CveIdNorm == $right.cveID\n| extend DwellDays = iff(isnotempty(dateAdded), datetime_diff('day', now(), todatetime(dateAdded)), int(null))\n| summarize DwellDays = max(DwellDays), AffectedDevices = dcount(DeviceId) by CveId = CveIdNorm, vendorProject\n| sort by DwellDays desc\n| take 25",
         "size": 0,
         "title": "KEV Dwell Time — Days Since Added to KEV List",
         "queryType": 0,
@@ -1023,7 +1128,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Defender-identified software exposure (native TVM, no enrichment assumptions)\nDeviceTvmSoftwareVulnerabilities\n| where TimeGenerated >= ago(30d)\n| where isnotempty(SoftwareName)\n| summarize\n    AffectedDevices = dcount(DeviceId),\n    FirstSeen = min(TimeGenerated),\n    LastSeen  = max(TimeGenerated)\n  by SoftwareName, SoftwareVendor\n| sort by AffectedDevices desc\n| take 25",
+        "query": "// Top Critical/High CVEs by device exposure (latest state, no watchlist)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| where VulnerabilitySeverityLevel in (\"Critical\", \"High\")\n| summarize\n    ['Affected Devices'] = dcount(DeviceId),\n    ['CVSS'] = max(CvssScore),\n    Severity = any(VulnerabilitySeverityLevel),\n    ['Public Exploit'] = iff(max(IsExploitAvailable) == 1, \"Yes\", \"\"),\n    Software = any(SoftwareName),\n    Vendor = any(SoftwareVendor)\n  by CveId = CveIdNorm\n| sort by ['Affected Devices'] desc, ['CVSS'] desc\n| take 25",
         "size": 0,
         "title": "Top Critical/High CVEs by Device Exposure (no watchlist)",
         "queryType": 0,
@@ -1117,7 +1222,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Software packages with the most distinct Critical/High CVEs — identify high-priority patching targets\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| where VulnerabilitySeverityLevel in (\"Critical\", \"High\")\n| summarize\n    DistinctCVEs    = dcount(CveId),\n    AffectedDevices = dcount(DeviceId),\n    CriticalCount   = dcountif(CveId, VulnerabilitySeverityLevel == \"Critical\"),\n    HighCount       = dcountif(CveId, VulnerabilitySeverityLevel == \"High\")\n  by SoftwareName, SoftwareVendor, SoftwareVersion\n| sort by DistinctCVEs desc\n| take 20\n| project Software=SoftwareName, Vendor=SoftwareVendor, Version=SoftwareVersion,\n    ['Total CVEs']=DistinctCVEs, Critical=CriticalCount, High=HighCount, ['Devices Affected']=AffectedDevices",
+        "query": "// Software packages with the most distinct Critical/High CVEs (latest state)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm, SoftwareName, SoftwareVendor, SoftwareVersion;\nTVM\n| where VulnerabilitySeverityLevel in (\"Critical\", \"High\")\n| summarize\n    DistinctCVEs    = dcount(CveIdNorm),\n    AffectedDevices = dcount(DeviceId),\n    CriticalCount   = dcountif(CveIdNorm, VulnerabilitySeverityLevel == \"Critical\"),\n    HighCount       = dcountif(CveIdNorm, VulnerabilitySeverityLevel == \"High\")\n  by SoftwareName, SoftwareVendor, SoftwareVersion\n| sort by DistinctCVEs desc\n| take 20\n| project Software=SoftwareName, Vendor=SoftwareVendor, Version=SoftwareVersion,\n    ['Total CVEs']=DistinctCVEs, Critical=CriticalCount, High=HighCount, ['Devices Affected']=AffectedDevices",
         "size": 0,
         "title": "Software with Most Open Vulnerabilities",
         "queryType": 0,
@@ -1169,7 +1274,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// CVEs with confirmed public exploits — highest remediation priority regardless of CVSS\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated {TimeRange}\n| where IsExploitAvailable == 1\n| summarize\n    AffectedDevices = dcount(DeviceId),\n    CvssScore       = max(CvssScore),\n    Severity        = any(VulnerabilitySeverityLevel),\n    Software        = any(SoftwareName),\n    Vendor          = any(SoftwareVendor)\n  by CveId\n| sort by CvssScore desc, AffectedDevices desc\n| project CveId, Severity, ['CVSS']=CvssScore, Software, Vendor, ['Affected Devices']=AffectedDevices",
+        "query": "// CVEs with confirmed public exploits (latest state)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| where IsExploitAvailable == 1\n| summarize\n    AffectedDevices = dcount(DeviceId),\n    CvssScore       = max(CvssScore),\n    Severity        = any(VulnerabilitySeverityLevel),\n    Software        = any(SoftwareName),\n    Vendor          = any(SoftwareVendor)\n  by CveId = CveIdNorm\n| sort by CvssScore desc, AffectedDevices desc\n| project CveId, Severity, ['CVSS']=CvssScore, Software, Vendor, ['Affected Devices']=AffectedDevices",
         "size": 0,
         "title": "CVEs with Public Exploits Available",
         "queryType": 0,
@@ -1761,7 +1866,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## Email Threats\n> Draws from Mimecast (`CommonSecurityLog` where DeviceVendor=Mimecast, or `MimecastSEGEvent_CL`) and Microsoft Defender for Office 365 (`EmailEvents`). Uses `union isfuzzy=true` to handle whichever sources are connected.\n>\n> If all tiles show 0, run the Setup tab to confirm which email tables are populated in your workspace."
+        "json": "## Email Threats\n> Draws from Mimecast (`CommonSecurityLog`, `MimecastSEGEvent_CL`, `MimecastSIEM_CL`, or `MimecastDLP`) and Microsoft Defender for Office 365 (`EmailEvents`). Uses `union isfuzzy=true` to handle whichever sources are connected.\n>\n> If panels are empty, run **Setup → Step 3** to see which Mimecast table is active and which `Action` / recipient column names your connector uses."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -1774,7 +1879,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Total blocked/rejected email threats from Mimecast and Defender for O365\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceAction has_any (\"Block\", \"Reject\", \"Hold\", \"block\", \"reject\", \"hold\")),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | where column_ifexists('action_s','') has_any (\"Block\", \"Reject\", \"Hold\")),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\"))\n| summarize ['Blocked Threats']=count()",
+        "query": "// Total blocked/rejected email threats from Mimecast and Defender for O365\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | extend _act = tolower(tostring(DeviceAction))\n     | where _act has_any (\"block\", \"reject\", \"hold\", \"held\", \"prevent\", \"quarantine\", \"bounce\")),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('Action', column_ifexists('action_s', ''))))\n     | where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\"))\n| summarize ['Blocked Threats']=count()",
         "size": 4,
         "title": "Blocked Email Threats",
         "queryType": 0,
@@ -1803,7 +1908,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Phishing-specific detections\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceEventClassID has_any (\"phish\", \"Phish\", \"spam\", \"Spam\")),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | where column_ifexists('type_s','') has_any (\"phish\", \"spam\")),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where ThreatTypes has \"Phish\")\n| summarize ['Phishing Detections']=count()",
+        "query": "// Phishing-specific detections\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where tostring(DeviceEventClassID) has_any (\"phish\", \"Phish\", \"spam\", \"Spam\") or tostring(Activity) has_any (\"phish\", \"Phish\", \"spam\", \"Spam\")),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend _type = tolower(tostring(column_ifexists('type_s', column_ifexists('Type', column_ifexists('category_s', '')))))\n     | where _type has_any ('phish', 'spam', 'impersonation')),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend _type = tolower(tostring(column_ifexists('type_s', column_ifexists('Type', column_ifexists('category_s', '')))))\n     | where _type has_any ('phish', 'spam', 'impersonation')),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend _type = tolower(tostring(column_ifexists('Definition', column_ifexists('type_s', column_ifexists('Type', '')))))\n     | where _type has_any ('phish', 'spam', 'impersonation')),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where ThreatTypes has \"Phish\")\n| summarize ['Phishing Detections']=count()",
         "size": 4,
         "title": "Phishing Detections",
         "queryType": 0,
@@ -1832,7 +1937,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Malware detections in email\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceEventClassID has_any (\"malware\", \"Malware\", \"virus\", \"Virus\")),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | where column_ifexists('type_s','') has_any (\"malware\", \"virus\")),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where ThreatTypes has \"Malware\")\n| summarize ['Malware Detections']=count()",
+        "query": "// Malware detections in email\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where tostring(DeviceEventClassID) has_any (\"malware\", \"Malware\", \"virus\", \"Virus\") or tostring(Activity) has_any (\"malware\", \"Malware\", \"virus\", \"Virus\")),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend _type = tolower(tostring(column_ifexists('type_s', column_ifexists('Type', column_ifexists('category_s', '')))))\n     | where _type has_any ('malware', 'virus', 'attachment')),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend _type = tolower(tostring(column_ifexists('type_s', column_ifexists('Type', column_ifexists('category_s', '')))))\n     | where _type has_any ('malware', 'virus', 'attachment')),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend _type = tolower(tostring(column_ifexists('Definition', column_ifexists('type_s', column_ifexists('Type', '')))))\n     | where _type has_any ('malware', 'virus', 'attachment')),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where ThreatTypes has \"Malware\")\n| summarize ['Malware Detections']=count()",
         "size": 4,
         "title": "Malware in Email",
         "queryType": 0,
@@ -1861,7 +1966,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Distinct users targeted by email threats\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceAction has_any (\"Block\", \"Reject\", \"Hold\", \"block\", \"reject\")\n     | extend TargetUser = column_ifexists('DestinationUserName', column_ifexists('DestinationEmailAddress', ''))\n     | where isnotempty(TargetUser)),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend TargetUser = column_ifexists('recipientAddress_s', ''))\n| summarize ['Users Targeted']=dcount(TargetUser)",
+        "query": "// Distinct users targeted by email threats\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | extend _act = tolower(tostring(DeviceAction))\n     | where _act has_any (\"block\", \"reject\", \"hold\", \"held\", \"prevent\", \"quarantine\", \"bounce\")\n     | extend TargetUser = tostring(column_ifexists('DestinationUserName', column_ifexists('DestinationEmailAddress', column_ifexists('Recipient', ''))))\n     | where isnotempty(TargetUser)),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend TargetUser = tostring(column_ifexists('recipientAddress_s', column_ifexists('recipient_s', column_ifexists('Recipient Address', column_ifexists('rcpt_s', '')))))\n     | where isnotempty(TargetUser)),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend TargetUser = tostring(column_ifexists('recipientAddress_s', column_ifexists('recipient_s', column_ifexists('Recipient Address', column_ifexists('rcpt_s', '')))))\n     | where isnotempty(TargetUser)),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend TargetUser = tostring(column_ifexists('Recipient Address', column_ifexists('RecipientAddress', column_ifexists('recipientAddress_s', ''))))\n     | where isnotempty(TargetUser)),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\")\n     | extend TargetUser = tostring(RecipientEmailAddress)\n     | where isnotempty(TargetUser))\n| summarize ['Users Targeted']=dcount(TargetUser)",
         "size": 4,
         "title": "Users Targeted",
         "queryType": 0,
@@ -1890,7 +1995,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Email threat volume over time — Mimecast + Defender combined\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceAction has_any (\"Block\", \"Reject\", \"Hold\", \"block\", \"reject\")\n     | extend Source = \"Mimecast\"),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | where column_ifexists('action_s','') has_any (\"Block\", \"Reject\")\n     | extend Source = \"Mimecast (SEG)\"),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\")\n     | extend Source = \"Defender for O365\")\n| summarize Count=count() by bin(TimeGenerated, 1d), Source\n| sort by TimeGenerated asc",
+        "query": "// Email threat volume over time — Mimecast + Defender combined\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | extend _act = tolower(tostring(DeviceAction))\n     | where _act has_any (\"block\", \"reject\", \"hold\", \"held\", \"prevent\", \"quarantine\", \"bounce\")\n     | extend Source = \"Mimecast (CEF)\"),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend Source = \"Mimecast SEG\"),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend Source = \"Mimecast SIEM\"),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('Action', column_ifexists('action_s', ''))))\n     | where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend Source = \"Mimecast DLP\"),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\")\n     | extend Source = \"Defender for O365\")\n| summarize Count=count() by bin(TimeGenerated, 1d), Source\n| sort by TimeGenerated asc",
         "size": 0,
         "title": "Email Threat Volume Over Time",
         "queryType": 0,
@@ -1909,7 +2014,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Email threat type breakdown\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceAction has_any (\"Block\", \"Reject\", \"Hold\", \"block\", \"reject\")\n     | extend ThreatType = column_ifexists('DeviceEventClassID', 'Unknown')),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend ThreatType = column_ifexists('type_s', 'Unknown')),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\")\n     | extend ThreatType = ThreatTypes)\n| summarize Count=count() by ThreatType\n| sort by Count desc\n| take 10",
+        "query": "// Email threat type breakdown\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | extend _act = tolower(tostring(DeviceAction))\n     | where _act has_any (\"block\", \"reject\", \"hold\", \"held\", \"prevent\", \"quarantine\", \"bounce\")\n     | extend ThreatType = tostring(column_ifexists('DeviceEventClassID', column_ifexists('Activity', 'Unknown')))),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where isempty(_act) or _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend ThreatType = tostring(column_ifexists('type_s', column_ifexists('Type', column_ifexists('category_s', 'Unknown'))))),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where isempty(_act) or _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend ThreatType = tostring(column_ifexists('type_s', column_ifexists('Type', column_ifexists('category_s', 'Unknown'))))),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend ThreatType = tostring(column_ifexists('Definition', column_ifexists('type_s', column_ifexists('Type', 'Unknown'))))),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\")\n     | extend ThreatType = tostring(ThreatTypes))\n| summarize Count=count() by ThreatType\n| sort by Count desc\n| take 10",
         "size": 3,
         "title": "Threat Type Breakdown",
         "queryType": 0,
@@ -1928,7 +2033,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Top 20 most targeted users by blocked email threat count\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceAction has_any (\"Block\", \"Reject\", \"Hold\", \"block\", \"reject\")\n     | extend TargetUser = column_ifexists('DestinationUserName', column_ifexists('DestinationEmailAddress', 'Unknown'))),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend TargetUser = column_ifexists('recipientAddress_s', 'Unknown')),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\")\n     | extend TargetUser = RecipientEmailAddress)\n| where TargetUser != \"Unknown\"\n| summarize ThreatCount=count() by TargetUser\n| sort by ThreatCount desc\n| take 20",
+        "query": "// Top 20 most targeted users by blocked / held email threat count\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | extend _act = tolower(tostring(DeviceAction))\n     | where _act has_any (\"block\", \"reject\", \"hold\", \"held\", \"prevent\", \"quarantine\", \"bounce\")\n     | extend TargetUser = tostring(column_ifexists('DestinationUserName', column_ifexists('DestinationEmailAddress', column_ifexists('Recipient', ''))))),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where isempty(_act) or _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend TargetUser = tostring(column_ifexists('recipientAddress_s', column_ifexists('recipient_s', column_ifexists('RecipientAddress', column_ifexists('Recipient Address', column_ifexists('rcpt_s', '')))))),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where isempty(_act) or _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend TargetUser = tostring(column_ifexists('recipientAddress_s', column_ifexists('recipient_s', column_ifexists('RecipientAddress', column_ifexists('Recipient Address', column_ifexists('rcpt_s', '')))))),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('Action', column_ifexists('action_s', ''))))\n     | where isempty(_act) or _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend TargetUser = tostring(column_ifexists('Recipient Address', column_ifexists('RecipientAddress', column_ifexists('recipientAddress_s', column_ifexists('recipient_s', ''))))),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\")\n     | extend TargetUser = tostring(RecipientEmailAddress))\n| where isnotempty(TargetUser) and TargetUser !in (\"Unknown\", \"-\", \"N/A\")\n| summarize ThreatCount=count() by TargetUser\n| sort by ThreatCount desc\n| take 20",
         "size": 0,
         "title": "Top 20 Most Targeted Users",
         "queryType": 0,
@@ -1941,6 +2046,36 @@
         "value": "email"
       },
       "name": "grid-top-targeted-users"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Mimecast Activity Detail\n> Recent blocked, held, or threat-classified messages from Mimecast tables. If this grid is empty but Mimecast shows events in the portal, run **Setup → Step 3c** and compare the `DistinctActions` / `SampleRecipients` values to the column names used here."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "email"
+      },
+      "name": "mimecast-detail-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Recent Mimecast threat / blocked / held messages (all Mimecast table variants)\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | extend\n        SourceTable = \"CommonSecurityLog\",\n        Action      = tostring(DeviceAction),\n        ThreatType  = tostring(column_ifexists('DeviceEventClassID', column_ifexists('Activity', ''))),\n        Sender      = tostring(column_ifexists('SourceUserName', column_ifexists('SourceEmailAddress', ''))),\n        Recipient   = tostring(column_ifexists('DestinationUserName', column_ifexists('DestinationEmailAddress', column_ifexists('Recipient', '')))),\n        Subject     = tostring(column_ifexists('DeviceCustomString1', column_ifexists('Message', '')))),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend\n        SourceTable = \"MimecastSEGEvent_CL\",\n        Action      = tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))),\n        ThreatType  = tostring(column_ifexists('type_s', column_ifexists('Type', column_ifexists('category_s', '')))),\n        Sender      = tostring(column_ifexists('senderAddress_s', column_ifexists('sender_s', column_ifexists('SenderAddress', '')))),\n        Recipient   = tostring(column_ifexists('recipientAddress_s', column_ifexists('recipient_s', column_ifexists('RecipientAddress', column_ifexists('Recipient Address', column_ifexists('rcpt_s', '')))))),\n        Subject     = tostring(column_ifexists('subject_s', column_ifexists('Subject', '')))),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend\n        SourceTable = \"MimecastSIEM_CL\",\n        Action      = tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))),\n        ThreatType  = tostring(column_ifexists('type_s', column_ifexists('Type', column_ifexists('category_s', '')))),\n        Sender      = tostring(column_ifexists('senderAddress_s', column_ifexists('sender_s', ''))),\n        Recipient   = tostring(column_ifexists('recipientAddress_s', column_ifexists('recipient_s', column_ifexists('Recipient Address', column_ifexists('rcpt_s', '')))),\n        Subject     = tostring(column_ifexists('subject_s', column_ifexists('Subject', '')))),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend\n        SourceTable = \"MimecastDLP\",\n        Action      = tostring(column_ifexists('Action', column_ifexists('action_s', ''))),\n        ThreatType  = tostring(column_ifexists('Definition', column_ifexists('type_s', column_ifexists('Type', '')))),\n        Sender      = tostring(column_ifexists('Sender Address', column_ifexists('SenderAddress', column_ifexists('senderAddress_s', '')))),\n        Recipient   = tostring(column_ifexists('Recipient Address', column_ifexists('RecipientAddress', column_ifexists('recipientAddress_s', '')))),\n        Subject     = tostring(column_ifexists('Subject', column_ifexists('subject_s', ''))))\n| extend _act = tolower(Action), _type = tolower(ThreatType)\n| where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce', 'spam', 'malware', 'phish')\n    or _type has_any ('phish', 'spam', 'malware', 'virus', 'impersonation', 'url', 'attachment')\n    or isempty(_act)\n| where isnotempty(Recipient) or isnotempty(Sender) or isnotempty(ThreatType)\n| project TimeGenerated, SourceTable, Action, ThreatType, Sender, Recipient, Subject\n| sort by TimeGenerated desc\n| take 50",
+        "size": 0,
+        "title": "Recent Mimecast Threat / Blocked Messages",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "email"
+      },
+      "name": "grid-mimecast-recent"
     },
     {
       "type": 1,
@@ -2053,7 +2188,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Weekly blocked email threat volume\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceAction has_any (\"Block\", \"Reject\", \"block\", \"reject\")),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | where column_ifexists('action_s','') has_any (\"Block\", \"Reject\")),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\"))\n| summarize BlockedThreats=count() by bin(TimeGenerated, 7d)\n| sort by TimeGenerated asc",
+        "query": "// Weekly blocked email threat volume\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | extend _act = tolower(tostring(DeviceAction))\n     | where _act has_any (\"block\", \"reject\", \"hold\", \"held\", \"prevent\", \"quarantine\", \"bounce\")),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('Action', column_ifexists('action_s', ''))))\n     | where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\"))\n| summarize BlockedThreats=count() by bin(TimeGenerated, 7d)\n| sort by TimeGenerated asc",
         "size": 0,
         "title": "Weekly Blocked Email Threats",
         "queryType": 0,
@@ -2862,7 +2997,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Step 1b: MDE TVM — confirm vulnerability data is present\nunion isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(3d)\n| summarize CVECount=dcount(CveId), DeviceCount=dcount(DeviceId), LatestRecord=max(TimeGenerated)",
+        "query": "// Step 1b: MDE TVM — row counts and sample CVE IDs (90d lookback, latest state)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| summarize\n    DistinctCVEs = dcount(CveIdNorm),\n    DeviceCvePairs = count(),\n    Devices = dcount(DeviceId),\n    Critical = dcountif(CveIdNorm, VulnerabilitySeverityLevel == 'Critical'),\n    High = dcountif(CveIdNorm, VulnerabilitySeverityLevel == 'High'),\n    LatestRecord = max(TimeGenerated),\n    SampleCveIds = make_set(CveIdNorm, 15)",
         "size": 0,
         "title": "Step 1b: MDE TVM Status",
         "queryType": 0,
@@ -2876,6 +3011,24 @@
       },
       "customWidth": "50",
       "name": "setup-tvm"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Step 1c: Total MDE CVEs vs CISA KEV overlap (diagnose zero KEV tile with non-zero TVM)\nlet TVMLookback = 90d;\nlet KEV = _GetWatchlist('CISA-KEV')\n| extend cveID = toupper(trim(tostring(column_ifexists('cveID', column_ifexists('CVE', tostring(SearchKey))))))\n| where cveID startswith 'CVE-'\n| summarize KevCatalogEntries = dcount(cveID), SampleKevIds = make_set(cveID, 10);\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nlet Estate = TVM\n| summarize\n    DistinctCVEs_InEstate = dcount(CveIdNorm),\n    KevMatches_InEstate = dcountif(CveIdNorm, CveIdNorm in (KEV | project cveID)),\n    SampleEstateCveIds = make_set(CveIdNorm, 15);\nEstate\n| extend KevCatalogEntries = toscalar(KEV | project KevCatalogEntries),\n          SampleKevIds = toscalar(KEV | project SampleKevIds),\n          Diagnosis = case(\n              DistinctCVEs_InEstate == 0, 'No TVM in workspace (90d) — MDE portal vulns will not appear here until TVM is streamed to Log Analytics',\n              KevMatches_InEstate == 0, 'TVM has data but zero KEV overlap — estate CVEs do not match watchlist IDs (check SearchKey=cveID, import, casing)',\n              'TVM and KEV overlap present — KEV panels should show non-zero counts')\n| project DistinctCVEs_InEstate, KevCatalogEntries, KevMatches_InEstate, Diagnosis, SampleEstateCveIds, SampleKevIds",
+        "size": 0,
+        "title": "Step 1c: Total CVEs vs KEV Overlap",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-tvm-kev-overlap"
     },
     {
       "type": 1,
@@ -2978,6 +3131,24 @@
       "name": "setup-mimecast-native"
     },
     {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Step 3c: Mimecast schema discovery — which Action and Recipient columns are populated\nunion isfuzzy=true\n    (CommonSecurityLog | where TimeGenerated > ago(3d) | where DeviceVendor =~ \"Mimecast\" | extend SourceTable = \"CommonSecurityLog\"),\n    (MimecastSEGEvent_CL | where TimeGenerated > ago(3d) | extend SourceTable = \"MimecastSEGEvent_CL\"),\n    (MimecastSIEM_CL | where TimeGenerated > ago(3d) | extend SourceTable = \"MimecastSIEM_CL\"),\n    (MimecastDLP | where TimeGenerated > ago(3d) | extend SourceTable = \"MimecastDLP\")\n| extend Action = tostring(column_ifexists(\"action_s\", column_ifexists(\"Action\", column_ifexists(\"action\", column_ifexists(\"DeviceAction\", \"\")))))\n| extend Recipient = tostring(column_ifexists(\"recipientAddress_s\", column_ifexists(\"recipient_s\", column_ifexists(\"Recipient Address\", column_ifexists(\"RecipientAddress\", column_ifexists(\"DestinationEmailAddress\", \"\"))))))\n| summarize RowCount = count(), DistinctActions = make_set(Action, 25), RecipientsPopulated = countif(isnotempty(Recipient)), LatestRecord = max(TimeGenerated) by SourceTable\n| sort by LatestRecord desc",
+        "size": 0,
+        "title": "Step 3c: Mimecast Action & Recipient Columns",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-mimecast-schema"
+    },
+    {
       "type": 1,
       "content": {
         "json": "### Step 4: Verify CISA KEV watchlist and Entra sign-in data"
@@ -3048,7 +3219,7 @@
     {
       "type": 1,
       "content": {
-        "json": "---\n### Notes\n\n**Okta table names** depend on the connector version:\n- Legacy DCR: `Okta_CL` — column names use `camelCase_s` suffix\n- CCP (newer): `OktaSSO` — column names are clean (no suffix)\n\nAll Identity tab queries use `union isfuzzy=true` to handle both. If you see unexpected nulls, check which table is active from Step 2 above and verify the column names with `getschema Okta_CL`.\n\n**Mimecast table names** depend on the connector:\n- Via CEF/Syslog: `CommonSecurityLog | where DeviceVendor =~ \"Mimecast\"`\n- Via Mimecast SEG connector: `MimecastSEGEvent_CL`\n\n**Entra ID risk data** (`RiskLevelDuringSignIn`) requires Azure AD Identity Protection P2 licence. Without it the column exists but all values are `none`.\n\n**DeviceTvmSoftwareVulnerabilities** may have a lag of up to 24 hours from MDE. Query `ago(2d)` if data appears sparse."
+        "json": "---\n### Notes\n\n**Okta table names** depend on the connector version:\n- Legacy DCR: `Okta_CL` — column names use `camelCase_s` suffix\n- CCP (newer): `OktaSSO` — column names are clean (no suffix)\n\nAll Identity tab queries use `union isfuzzy=true` to handle both. If you see unexpected nulls, check which table is active from Step 2 above and verify the column names with `getschema Okta_CL`.\n\n**Mimecast table names** depend on the connector:\n- Via CEF/Syslog: `CommonSecurityLog | where DeviceVendor =~ \"Mimecast\"`\n- Via Mimecast SEG API connector: `MimecastSEGEvent_CL` or `MimecastSIEM_CL`\n- Via Mimecast solution DLP/TTP: `MimecastDLP` (columns may include `Action`, `Recipient Address` with spaces)\n- Mimecast actions are often `Held` / `hold`, not `Hold` — the Email tab normalises action values to lowercase\n- Run **Step 3c** if the bottom Mimecast grid is empty: check `DistinctActions` and `RecipientsPopulated`\n\n**Entra ID risk data** (`RiskLevelDuringSignIn`) requires Azure AD Identity Protection P2 licence. Without it the column exists but all values are `none`.\n\n**DeviceTvmSoftwareVulnerabilities** uses a 90-day lookback and `arg_max` per device+CVE (current posture, not workbook time range only). TVM may lag MDE portal by up to 24 hours.\n\n**Zero vs non-zero:** Overview **Total Open CVEs** > 0 but **KEV Matches** = 0 means no overlap with the `CISA-KEV` watchlist (run Step 1c). **VIB Priority CVEs** = 0 often means none of the fixed CVE-2026-* IDs exist in your estate — expected for many tenants.\n\n**KEV watchlist:** SearchKey must be `cveID` (or use a `cveID` column); workbook normalises IDs to uppercase before join."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
