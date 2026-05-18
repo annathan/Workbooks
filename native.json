@@ -1128,7 +1128,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Top Critical/High CVEs by device exposure (latest state, no watchlist)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(\" \", tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| where VulnerabilitySeverityLevel in (\"Critical\", \"High\")\n| summarize\n    ['Affected Devices'] = dcount(DeviceId),\n    ['CVSS'] = max(CvssScore),\n    Severity = any(VulnerabilitySeverityLevel),\n    ['Public Exploit'] = iff(max(IsExploitAvailable) == 1, \"Yes\", \"\"),\n    Software = any(SoftwareName),\n    Vendor = any(SoftwareVendor)\n  by CveId = CveIdNorm\n| sort by ['Affected Devices'] desc, ['CVSS'] desc\n| take 25",
+        "query": "// Top Critical/High CVEs by device exposure (latest state, no watchlist)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend\n    CveIdNorm = toupper(trim(\" \", tostring(CveId))),\n    IsExploit = column_ifexists(\"IsExploitAvailable\", 0),\n    CveTagsStr = tostring(column_ifexists(\"CveTags\", dynamic([])))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| where VulnerabilitySeverityLevel in (\"Critical\", \"High\")\n| summarize\n    ['Affected Devices'] = dcount(DeviceId),\n    Severity = any(VulnerabilitySeverityLevel),\n    ['Public Exploit'] = iff(max(IsExploit) == 1 or max(CveTagsStr has \"Exploit\"), \"Yes\", \"\"),\n    Software = any(SoftwareName),\n    Vendor = any(SoftwareVendor)\n  by CveId = CveIdNorm\n| extend SeverityOrder = case(Severity == \"Critical\", 2, Severity == \"High\", 1, 0)\n| sort by ['Affected Devices'] desc, SeverityOrder desc\n| project-away SeverityOrder\n| take 25",
         "size": 0,
         "title": "Top Critical/High CVEs by Device Exposure (no watchlist)",
         "queryType": 0,
@@ -1178,32 +1178,6 @@
                     "operator": "Default",
                     "representation": "success",
                     "text": ""
-                  }
-                ]
-              }
-            },
-            {
-              "columnMatch": "CVSS",
-              "formatter": 18,
-              "formatOptions": {
-                "thresholdsOptions": "colors",
-                "thresholdsGrid": [
-                  {
-                    "operator": ">=",
-                    "thresholdValue": "9",
-                    "representation": "redBright",
-                    "text": "{0}"
-                  },
-                  {
-                    "operator": ">=",
-                    "thresholdValue": "7",
-                    "representation": "orange",
-                    "text": "{0}"
-                  },
-                  {
-                    "operator": "Default",
-                    "representation": "yellow",
-                    "text": "{0}"
                   }
                 ]
               }
@@ -1274,7 +1248,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// CVEs with confirmed public exploits (latest state)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(\" \", tostring(CveId)))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| where IsExploitAvailable == 1\n| summarize\n    AffectedDevices = dcount(DeviceId),\n    CvssScore       = max(CvssScore),\n    Severity        = any(VulnerabilitySeverityLevel),\n    Software        = any(SoftwareName),\n    Vendor          = any(SoftwareVendor)\n  by CveId = CveIdNorm\n| sort by CvssScore desc, AffectedDevices desc\n| project CveId, Severity, ['CVSS']=CvssScore, Software, Vendor, ['Affected Devices']=AffectedDevices",
+        "query": "// CVEs with confirmed public exploits (latest state)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend\n    CveIdNorm = toupper(trim(\" \", tostring(CveId))),\n    IsExploit = column_ifexists(\"IsExploitAvailable\", 0),\n    CveTagsStr = tostring(column_ifexists(\"CveTags\", dynamic([])))\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm;\nTVM\n| where IsExploit == 1 or CveTagsStr has \"Exploit\"\n| summarize\n    ['Affected Devices'] = dcount(DeviceId),\n    Severity = any(VulnerabilitySeverityLevel),\n    Software = any(SoftwareName),\n    Vendor = any(SoftwareVendor)\n  by CveId = CveIdNorm\n| extend SeverityOrder = case(Severity == \"Critical\", 4, Severity == \"High\", 3, Severity == \"Medium\", 2, Severity == \"Low\", 1, 0)\n| sort by SeverityOrder desc, ['Affected Devices'] desc\n| project-away SeverityOrder\n| project CveId, Severity, Software, Vendor, ['Affected Devices']",
         "size": 0,
         "title": "CVEs with Public Exploits Available",
         "queryType": 0,
@@ -1299,32 +1273,6 @@
                     "thresholdValue": "High",
                     "representation": "orange",
                     "text": "High"
-                  },
-                  {
-                    "operator": "Default",
-                    "representation": "yellow",
-                    "text": "{0}"
-                  }
-                ]
-              }
-            },
-            {
-              "columnMatch": "CVSS",
-              "formatter": 18,
-              "formatOptions": {
-                "thresholdsOptions": "colors",
-                "thresholdsGrid": [
-                  {
-                    "operator": ">=",
-                    "thresholdValue": "9",
-                    "representation": "redBright",
-                    "text": "{0}"
-                  },
-                  {
-                    "operator": ">=",
-                    "thresholdValue": "7",
-                    "representation": "orange",
-                    "text": "{0}"
                   },
                   {
                     "operator": "Default",
@@ -2033,7 +1981,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Top 20 most targeted users by blocked / held email threat count\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | extend _act = tolower(tostring(DeviceAction))\n     | where _act has_any (\"block\", \"reject\", \"hold\", \"held\", \"prevent\", \"quarantine\", \"bounce\")\n     | extend TargetUser = tostring(column_ifexists('DestinationUserName', column_ifexists('DestinationEmailAddress', column_ifexists('Recipient', ''))))),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where isempty(_act) or _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend TargetUser = tostring(column_ifexists('recipientAddress_s', column_ifexists('recipient_s', column_ifexists('RecipientAddress', column_ifexists('Recipient Address', column_ifexists('rcpt_s', '')))))),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where isempty(_act) or _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend TargetUser = tostring(column_ifexists('recipientAddress_s', column_ifexists('recipient_s', column_ifexists('RecipientAddress', column_ifexists('Recipient Address', column_ifexists('rcpt_s', '')))))),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('Action', column_ifexists('action_s', ''))))\n     | where isempty(_act) or _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend TargetUser = tostring(column_ifexists('Recipient Address', column_ifexists('RecipientAddress', column_ifexists('recipientAddress_s', column_ifexists('recipient_s', ''))))),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\")\n     | extend TargetUser = tostring(RecipientEmailAddress))\n| where isnotempty(TargetUser) and TargetUser !in (\"Unknown\", \"-\", \"N/A\")\n| summarize ThreatCount=count() by TargetUser\n| sort by ThreatCount desc\n| take 20",
+        "query": "// Top 20 most targeted users by blocked / held email threat count\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | extend _act = tolower(tostring(DeviceAction))\n     | where _act has_any (\"block\", \"reject\", \"hold\", \"held\", \"prevent\", \"quarantine\", \"bounce\")\n     | extend TargetUser = tostring(column_ifexists('DestinationUserName', column_ifexists('DestinationEmailAddress', column_ifexists('Recipient', ''))))))),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where isempty(_act) or _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend TargetUser = tostring(column_ifexists('recipientAddress_s', column_ifexists('recipient_s', column_ifexists('RecipientAddress', column_ifexists('Recipient Address', column_ifexists('rcpt_s', '')))))),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where isempty(_act) or _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend TargetUser = tostring(column_ifexists('recipientAddress_s', column_ifexists('recipient_s', column_ifexists('RecipientAddress', column_ifexists('Recipient Address', column_ifexists('rcpt_s', '')))))),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('Action', column_ifexists('action_s', ''))))\n     | where isempty(_act) or _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend TargetUser = tostring(column_ifexists('Recipient Address', column_ifexists('RecipientAddress', column_ifexists('recipientAddress_s', column_ifexists('recipient_s', '')))))),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\")\n     | extend TargetUser = tostring(RecipientEmailAddress))\n| where isnotempty(TargetUser) and TargetUser !in (\"Unknown\", \"-\", \"N/A\")\n| summarize ThreatCount=count() by TargetUser\n| sort by ThreatCount desc\n| take 20",
         "size": 0,
         "title": "Top 20 Most Targeted Users",
         "queryType": 0,
@@ -2063,7 +2011,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Recent Mimecast threat / blocked / held messages (all Mimecast table variants)\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | extend\n        SourceTable = \"CommonSecurityLog\",\n        Action      = tostring(DeviceAction),\n        ThreatType  = tostring(column_ifexists('DeviceEventClassID', column_ifexists('Activity', ''))),\n        Sender      = tostring(column_ifexists('SourceUserName', column_ifexists('SourceEmailAddress', ''))),\n        Recipient   = tostring(column_ifexists('DestinationUserName', column_ifexists('DestinationEmailAddress', column_ifexists('Recipient', '')))),\n        Subject     = tostring(column_ifexists('DeviceCustomString1', column_ifexists('Message', '')))),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend\n        SourceTable = \"MimecastSEGEvent_CL\",\n        Action      = tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))),\n        ThreatType  = tostring(column_ifexists('type_s', column_ifexists('Type', column_ifexists('category_s', '')))),\n        Sender      = tostring(column_ifexists('senderAddress_s', column_ifexists('sender_s', column_ifexists('SenderAddress', '')))),\n        Recipient   = tostring(column_ifexists('recipientAddress_s', column_ifexists('recipient_s', column_ifexists('RecipientAddress', column_ifexists('Recipient Address', column_ifexists('rcpt_s', '')))))),\n        Subject     = tostring(column_ifexists('subject_s', column_ifexists('Subject', '')))),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend\n        SourceTable = \"MimecastSIEM_CL\",\n        Action      = tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))),\n        ThreatType  = tostring(column_ifexists('type_s', column_ifexists('Type', column_ifexists('category_s', '')))),\n        Sender      = tostring(column_ifexists('senderAddress_s', column_ifexists('sender_s', ''))),\n        Recipient   = tostring(column_ifexists('recipientAddress_s', column_ifexists('recipient_s', column_ifexists('Recipient Address', column_ifexists('rcpt_s', '')))),\n        Subject     = tostring(column_ifexists('subject_s', column_ifexists('Subject', '')))),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend\n        SourceTable = \"MimecastDLP\",\n        Action      = tostring(column_ifexists('Action', column_ifexists('action_s', ''))),\n        ThreatType  = tostring(column_ifexists('Definition', column_ifexists('type_s', column_ifexists('Type', '')))),\n        Sender      = tostring(column_ifexists('Sender Address', column_ifexists('SenderAddress', column_ifexists('senderAddress_s', '')))),\n        Recipient   = tostring(column_ifexists('Recipient Address', column_ifexists('RecipientAddress', column_ifexists('recipientAddress_s', '')))),\n        Subject     = tostring(column_ifexists('Subject', column_ifexists('subject_s', ''))))\n| extend _act = tolower(Action), _type = tolower(ThreatType)\n| where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce', 'spam', 'malware', 'phish')\n    or _type has_any ('phish', 'spam', 'malware', 'virus', 'impersonation', 'url', 'attachment')\n    or isempty(_act)\n| where isnotempty(Recipient) or isnotempty(Sender) or isnotempty(ThreatType)\n| project TimeGenerated, SourceTable, Action, ThreatType, Sender, Recipient, Subject\n| sort by TimeGenerated desc\n| take 50",
+        "query": "// Recent Mimecast threat / blocked / held messages (all Mimecast table variants)\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | extend\n        SourceTable = \"CommonSecurityLog\",\n        Action      = tostring(DeviceAction),\n        ThreatType  = tostring(column_ifexists('DeviceEventClassID', column_ifexists('Activity', ''))),\n        Sender      = tostring(column_ifexists('SourceUserName', column_ifexists('SourceEmailAddress', ''))),\n        Recipient   = tostring(column_ifexists('DestinationUserName', column_ifexists('DestinationEmailAddress', column_ifexists('Recipient', '')))),\n        Subject     = tostring(column_ifexists('DeviceCustomString1', column_ifexists('Message', '')))),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend\n        SourceTable = \"MimecastSEGEvent_CL\",\n        Action      = tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))),\n        ThreatType  = tostring(column_ifexists('type_s', column_ifexists('Type', column_ifexists('category_s', '')))),\n        Sender      = tostring(column_ifexists('senderAddress_s', column_ifexists('sender_s', column_ifexists('SenderAddress', '')))),\n        Recipient   = tostring(column_ifexists('recipientAddress_s', column_ifexists('recipient_s', column_ifexists('RecipientAddress', column_ifexists('Recipient Address', column_ifexists('rcpt_s', '')))))),\n        Subject     = tostring(column_ifexists('subject_s', column_ifexists('Subject', '')))),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend\n        SourceTable = \"MimecastSIEM_CL\",\n        Action      = tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))),\n        ThreatType  = tostring(column_ifexists('type_s', column_ifexists('Type', column_ifexists('category_s', '')))),\n        Sender      = tostring(column_ifexists('senderAddress_s', column_ifexists('sender_s', ''))),\n        Recipient   = tostring(column_ifexists('recipientAddress_s', column_ifexists('recipient_s', column_ifexists('Recipient Address', column_ifexists('rcpt_s', ''))))),\n        Subject     = tostring(column_ifexists('subject_s', column_ifexists('Subject', '')))),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend\n        SourceTable = \"MimecastDLP\",\n        Action      = tostring(column_ifexists('Action', column_ifexists('action_s', ''))),\n        ThreatType  = tostring(column_ifexists('Definition', column_ifexists('type_s', column_ifexists('Type', '')))),\n        Sender      = tostring(column_ifexists('Sender Address', column_ifexists('SenderAddress', column_ifexists('senderAddress_s', '')))),\n        Recipient   = tostring(column_ifexists('Recipient Address', column_ifexists('RecipientAddress', column_ifexists('recipientAddress_s', '')))),\n        Subject     = tostring(column_ifexists('Subject', column_ifexists('subject_s', ''))))\n| extend _act = tolower(Action), _type = tolower(ThreatType)\n| where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce', 'spam', 'malware', 'phish')\n    or _type has_any ('phish', 'spam', 'malware', 'virus', 'impersonation', 'url', 'attachment')\n    or isempty(_act)\n| where isnotempty(Recipient) or isnotempty(Sender) or isnotempty(ThreatType)\n| project TimeGenerated, SourceTable, Action, ThreatType, Sender, Recipient, Subject\n| sort by TimeGenerated desc\n| take 50",
         "size": 0,
         "title": "Recent Mimecast Threat / Blocked Messages",
         "queryType": 0,
