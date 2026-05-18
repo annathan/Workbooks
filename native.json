@@ -554,6 +554,82 @@
       "name": "grid-open-alerts"
     },
     {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly distinct open CVEs — end-of-week TVM snapshot per device+CVE\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(\" \", tostring(CveId)))\n| extend WeekStart = startofweek(TimeGenerated)\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm, WeekStart;\nTVM\n| where WeekStart {TimeRange}\n| summarize OpenCVEs = dcount(CveIdNorm) by WeekStart\n| sort by WeekStart asc",
+        "size": 0,
+        "title": "Weekly Open CVEs (MDE)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "25",
+      "name": "chart-overview-cve-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly distinct KEV CVEs in TVM estate\nlet TVMLookback = 90d;\nlet KEV = _GetWatchlist('CISA-KEV')\n| extend cveID = toupper(trim(\" \", tostring(column_ifexists('cveID', column_ifexists('CVE', tostring(SearchKey))))))\n| where cveID startswith 'CVE-'\n| distinct cveID;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(\" \", tostring(CveId)))\n| extend WeekStart = startofweek(TimeGenerated)\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm, WeekStart;\nTVM\n| where CveIdNorm in (KEV | project cveID)\n| where WeekStart {TimeRange}\n| summarize KEVCVEs = dcount(CveIdNorm) by WeekStart\n| sort by WeekStart asc",
+        "size": 0,
+        "title": "Weekly KEV CVEs (MDE)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "25",
+      "name": "chart-overview-kev-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly blocked email threat volume\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | extend _act = tolower(tostring(DeviceAction))\n     | where _act has_any (\"block\", \"reject\", \"hold\", \"held\", \"prevent\", \"quarantine\", \"bounce\")),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('Action', column_ifexists('action_s', ''))))\n     | where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\"))\n| summarize BlockedThreats=count() by bin(TimeGenerated, 7d)\n| sort by TimeGenerated asc",
+        "size": 0,
+        "title": "Weekly Blocked Email",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "25",
+      "name": "chart-overview-email-trend"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly open P1/P2 incidents created\nunion isfuzzy=true SecurityIncident\n| where CreatedTime {TimeRange}\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where Severity in (\"Critical\", \"High\")\n| where Status !in (\"Closed\", \"Resolved\")\n| summarize OpenP1P2=count() by bin(CreatedTime, 7d)\n| sort by CreatedTime asc",
+        "size": 0,
+        "title": "Weekly Open P1/P2 Created",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "overview"
+      },
+      "customWidth": "25",
+      "name": "chart-overview-p1p2-trend"
+    },
+    {
       "type": 1,
       "content": {
         "json": "## Device Risk\n> Sourced from Microsoft Defender for Endpoint. Requires the MDE connector and sufficient device onboarding coverage.\n>\n> `DeviceInfo` records update when device state changes. Use `arg_max(TimeGenerated, *)` to get the current state per device. Devices that have not reported in the time window will not appear — extend the time range or use `ago(7d)` in a custom query if you need full inventory."
@@ -763,6 +839,75 @@
         "value": "devices"
       },
       "name": "grid-not-onboarded"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Device trends\n> Weekly snapshots from `DeviceInfo`. Extend the time range to 30 or 90 days for trajectory."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "devices"
+      },
+      "name": "devices-trends-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly onboarded device percentage\nunion isfuzzy=true DeviceInfo\n| where TimeGenerated {TimeRange}\n| extend WeekStart = startofweek(TimeGenerated)\n| summarize arg_max(TimeGenerated, *) by DeviceId, WeekStart\n| summarize Total = dcount(DeviceId), Onboarded = dcountif(DeviceId, OnboardingStatus == \"Onboarded\") by WeekStart\n| extend OnboardPct = round(100.0 * Onboarded / Total, 1)\n| project WeekStart, OnboardPct\n| sort by WeekStart asc",
+        "size": 0,
+        "title": "Weekly Onboarded %",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "devices"
+      },
+      "customWidth": "33",
+      "name": "chart-device-onboard-pct"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly impaired sensor count (onboarded devices)\nunion isfuzzy=true DeviceInfo\n| where TimeGenerated {TimeRange}\n| extend WeekStart = startofweek(TimeGenerated)\n| summarize arg_max(TimeGenerated, *) by DeviceId, WeekStart\n| where OnboardingStatus == \"Onboarded\"\n| extend SensorHealth = column_ifexists('SensorHealthState', '')\n| summarize ImpairedSensors = dcountif(DeviceId, SensorHealth !in (\"Active\", \"\")) by WeekStart\n| sort by WeekStart asc",
+        "size": 0,
+        "title": "Weekly Impaired Sensors",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "devices"
+      },
+      "customWidth": "33",
+      "name": "chart-device-sensor-impaired"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly High/VeryHigh exposure device count\nunion isfuzzy=true DeviceInfo\n| where TimeGenerated {TimeRange}\n| extend WeekStart = startofweek(TimeGenerated)\n| summarize arg_max(TimeGenerated, *) by DeviceId, WeekStart\n| where OnboardingStatus == \"Onboarded\"\n| extend ExposureLevel = column_ifexists('ExposureLevel', 'Unknown')\n| where ExposureLevel in (\"High\", \"VeryHigh\")\n| summarize HighExposureDevices = dcount(DeviceId) by WeekStart\n| sort by WeekStart asc",
+        "size": 0,
+        "title": "Weekly High Exposure Devices",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "devices"
+      },
+      "customWidth": "34",
+      "name": "chart-device-exposure-high"
     },
     {
       "type": 1,
@@ -1111,6 +1256,75 @@
         "value": "vulns"
       },
       "name": "grid-acsc-advisories"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Vulnerability trends\n> Weekly CVE counts use an end-of-week snapshot per device+CVE (see **Setup & Validation → Notes**). Extend the time range to 30 or 90 days for trajectory."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "name": "vulns-trends-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly distinct open CVE count — end-of-week TVM snapshot per device+CVE\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(\" \", tostring(CveId)))\n| extend WeekStart = startofweek(TimeGenerated)\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm, WeekStart;\nTVM\n| where WeekStart {TimeRange}\n| summarize OpenCVEs = dcount(CveIdNorm) by WeekStart\n| sort by WeekStart asc",
+        "size": 0,
+        "title": "Weekly Open CVE Count",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "customWidth": "33",
+      "name": "chart-vuln-weekly-total"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly Critical vs High CVE exposure (distinct CVEs per severity)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(\" \", tostring(CveId)))\n| extend WeekStart = startofweek(TimeGenerated)\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm, WeekStart;\nTVM\n| where VulnerabilitySeverityLevel in (\"Critical\", \"High\")\n| where WeekStart {TimeRange}\n| summarize OpenCVEs = dcount(CveIdNorm) by WeekStart, VulnerabilitySeverityLevel\n| sort by WeekStart asc",
+        "size": 0,
+        "title": "Weekly Critical / High CVEs",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "customWidth": "33",
+      "name": "chart-vuln-weekly-severity"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly KEV CVE exposure (distinct KEV CVEs in estate)\nlet TVMLookback = 90d;\nlet KEV = _GetWatchlist('CISA-KEV')\n| extend cveID = toupper(trim(\" \", tostring(column_ifexists('cveID', column_ifexists('CVE', tostring(SearchKey))))))\n| where cveID startswith 'CVE-'\n| distinct cveID;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(\" \", tostring(CveId)))\n| extend WeekStart = startofweek(TimeGenerated)\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm, WeekStart;\nTVM\n| where CveIdNorm in (KEV | project cveID)\n| where WeekStart {TimeRange}\n| summarize KEVCVEs = dcount(CveIdNorm) by WeekStart\n| sort by WeekStart asc",
+        "size": 0,
+        "title": "Weekly KEV Exposure",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "vulns"
+      },
+      "customWidth": "34",
+      "name": "chart-vuln-weekly-kev"
     },
     {
       "type": 1,
@@ -1981,6 +2195,44 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
+        "query": "// Weekly blocked email threats by source\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | extend _act = tolower(tostring(DeviceAction))\n     | where _act has_any (\"block\", \"reject\", \"hold\", \"held\", \"prevent\", \"quarantine\", \"bounce\")\n     | extend Source = \"Mimecast (CEF)\"),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend Source = \"Mimecast SEG\"),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend Source = \"Mimecast SIEM\"),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('Action', column_ifexists('action_s', ''))))\n     | where _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend Source = \"Mimecast DLP\"),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\")\n     | extend Source = \"Defender for O365\")\n| summarize Count=count() by bin(TimeGenerated, 7d), Source\n| sort by TimeGenerated asc",
+        "size": 0,
+        "title": "Weekly Blocked Threats by Source",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "email"
+      },
+      "customWidth": "50",
+      "name": "chart-email-source-weekly"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly threat type trend — top types by volume\nlet BlockedEmail = union isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | extend _act = tolower(tostring(DeviceAction))\n     | where _act has_any (\"block\", \"reject\", \"hold\", \"held\", \"prevent\", \"quarantine\", \"bounce\")\n     | extend ThreatType = tostring(column_ifexists('DeviceEventClassID', column_ifexists('Activity', 'Unknown')))),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where isempty(_act) or _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend ThreatType = tostring(column_ifexists('type_s', column_ifexists('Type', column_ifexists('category_s', 'Unknown'))))),\n    (MimecastSIEM_CL\n     | where TimeGenerated {TimeRange}\n     | extend _act = tolower(tostring(column_ifexists('action_s', column_ifexists('Action', column_ifexists('action', '')))))\n     | where isempty(_act) or _act has_any ('block', 'reject', 'hold', 'held', 'prevent', 'quarantine', 'bounce')\n     | extend ThreatType = tostring(column_ifexists('type_s', column_ifexists('Type', column_ifexists('category_s', 'Unknown'))))),\n    (MimecastDLP\n     | where TimeGenerated {TimeRange}\n     | extend ThreatType = tostring(column_ifexists('Definition', column_ifexists('type_s', column_ifexists('Type', 'Unknown'))))),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\")\n     | extend ThreatType = tostring(ThreatTypes));\nlet TopTypes = BlockedEmail\n| where isnotempty(ThreatType) and ThreatType != \"Unknown\"\n| summarize Total=count() by ThreatType\n| top 5 by Total\n| project ThreatType;\nBlockedEmail\n| where ThreatType in (TopTypes)\n| summarize Count=count() by bin(TimeGenerated, 7d), ThreatType\n| sort by TimeGenerated asc",
+        "size": 0,
+        "title": "Weekly Threat Types (Top 5)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "email"
+      },
+      "customWidth": "50",
+      "name": "chart-email-threattype-weekly"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
         "query": "// Top 20 most targeted users by blocked email threat count\nunion isfuzzy=true\n    (CommonSecurityLog\n     | where TimeGenerated {TimeRange}\n     | where DeviceVendor =~ \"Mimecast\"\n     | where DeviceAction has_any (\"Block\", \"Reject\", \"Hold\", \"block\", \"reject\")\n     | extend TargetUser = column_ifexists('DestinationUserName', column_ifexists('DestinationEmailAddress', 'Unknown'))),\n    (MimecastSEGEvent_CL\n     | where TimeGenerated {TimeRange}\n     | extend TargetUser = column_ifexists('recipientAddress_s', 'Unknown')),\n    (EmailEvents\n     | where TimeGenerated {TimeRange}\n     | where DeliveryAction in (\"Blocked\", \"Replaced\")\n     | extend TargetUser = RecipientEmailAddress)\n| where TargetUser != \"Unknown\"\n| summarize ThreatCount=count() by TargetUser\n| sort by ThreatCount desc\n| take 20",
         "size": 0,
         "title": "Top 20 Most Targeted Users",
@@ -2028,14 +2280,83 @@
     {
       "type": 1,
       "content": {
-        "json": "## Trends\nExtend the time range to 30 or 90 days to see trajectory. These charts are the live equivalent of the trajectory section in a quarterly brief."
+        "json": "## Posture trajectory\nVulnerability weekly metrics use end-of-week TVM snapshots (see **Setup & Validation → Notes**). Extend the time range to 30 or 90 days."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
         "comparison": "isEqualTo",
         "value": "trends"
       },
-      "name": "trends-heading"
+      "name": "trends-posture-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly distinct open CVE count — end-of-week TVM snapshot per device+CVE\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(\" \", tostring(CveId)))\n| extend WeekStart = startofweek(TimeGenerated)\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm, WeekStart;\nTVM\n| where WeekStart {TimeRange}\n| summarize OpenCVEs = dcount(CveIdNorm) by WeekStart\n| sort by WeekStart asc",
+        "size": 0,
+        "title": "Weekly Open CVE Count",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "trends"
+      },
+      "customWidth": "33",
+      "name": "chart-trends-vuln-weekly-total"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly Critical vs High CVE exposure (distinct CVEs per severity)\nlet TVMLookback = 90d;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(\" \", tostring(CveId)))\n| extend WeekStart = startofweek(TimeGenerated)\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm, WeekStart;\nTVM\n| where VulnerabilitySeverityLevel in (\"Critical\", \"High\")\n| where WeekStart {TimeRange}\n| summarize OpenCVEs = dcount(CveIdNorm) by WeekStart, VulnerabilitySeverityLevel\n| sort by WeekStart asc",
+        "size": 0,
+        "title": "Weekly Critical / High CVEs",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "trends"
+      },
+      "customWidth": "33",
+      "name": "chart-trends-vuln-weekly-severity"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Weekly KEV CVE exposure (distinct KEV CVEs in estate)\nlet TVMLookback = 90d;\nlet KEV = _GetWatchlist('CISA-KEV')\n| extend cveID = toupper(trim(\" \", tostring(column_ifexists('cveID', column_ifexists('CVE', tostring(SearchKey))))))\n| where cveID startswith 'CVE-'\n| distinct cveID;\nlet TVM = union isfuzzy=true DeviceTvmSoftwareVulnerabilities\n| where TimeGenerated > ago(TVMLookback)\n| where isnotempty(CveId)\n| extend CveIdNorm = toupper(trim(\" \", tostring(CveId)))\n| extend WeekStart = startofweek(TimeGenerated)\n| summarize arg_max(TimeGenerated, *) by DeviceId, CveIdNorm, WeekStart;\nTVM\n| where CveIdNorm in (KEV | project cveID)\n| where WeekStart {TimeRange}\n| summarize KEVCVEs = dcount(CveIdNorm) by WeekStart\n| sort by WeekStart asc",
+        "size": 0,
+        "title": "Weekly KEV Exposure",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "trends"
+      },
+      "customWidth": "34",
+      "name": "chart-trends-vuln-weekly-kev"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Operations trajectory\nAlert, incident, identity, device, and email operational metrics. Extend the time range to 30 or 90 days to see trajectory."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "trends"
+      },
+      "name": "trends-operations-heading"
     },
     {
       "type": 3,
@@ -3167,7 +3488,7 @@
     {
       "type": 1,
       "content": {
-        "json": "---\n### Notes\n\n**Okta table names** depend on the connector version:\n- Legacy DCR: `Okta_CL` — column names use `camelCase_s` suffix\n- CCP (newer): `OktaSSO` — column names are clean (no suffix)\n\nAll Identity tab queries use `union isfuzzy=true` to handle both. If you see unexpected nulls, check which table is active from Step 2 above and verify the column names with `getschema Okta_CL`.\n\n**Mimecast table names** depend on the connector:\n- Via CEF/Syslog: `CommonSecurityLog | where DeviceVendor =~ \"Mimecast\"`\n- Via Mimecast SEG API connector: `MimecastSEGEvent_CL` or `MimecastSIEM_CL`\n- Via Mimecast solution DLP/TTP: `MimecastDLP` (columns may include `Action`, `Recipient Address` with spaces)\n- Mimecast actions are often `Held` / `hold`, not `Hold` — the Email tab normalises action values to lowercase\n- Run **Step 3c** if the bottom Mimecast grid is empty: check `DistinctActions` and `RecipientsPopulated`\n\n**Entra ID risk data** (`RiskLevelDuringSignIn`) requires Azure AD Identity Protection P2 licence. Without it the column exists but all values are `none`.\n\n**DeviceTvmSoftwareVulnerabilities** uses a 90-day lookback and `arg_max` per device+CVE (current posture, not workbook time range only). TVM may lag MDE portal by up to 24 hours.\n\n**Zero vs non-zero:** Overview **Total Open CVEs** > 0 but **KEV Matches** = 0 means no overlap with the `CISA-KEV` watchlist (run Step 1c). **VIB Priority CVEs** = 0 often means none of the fixed CVE-2026-* IDs exist in your estate — expected for many tenants.\n\n**KEV watchlist:** SearchKey must be `cveID` (or use a `cveID` column); workbook normalises IDs to uppercase before join."
+        "json": "---\n### Notes\n\n**Okta table names** depend on the connector version:\n- Legacy DCR: `Okta_CL` — column names use `camelCase_s` suffix\n- CCP (newer): `OktaSSO` — column names are clean (no suffix)\n\nAll Identity tab queries use `union isfuzzy=true` to handle both. If you see unexpected nulls, check which table is active from Step 2 above and verify the column names with `getschema Okta_CL`.\n\n**Mimecast table names** depend on the connector:\n- Via CEF/Syslog: `CommonSecurityLog | where DeviceVendor =~ \"Mimecast\"`\n- Via Mimecast SEG API connector: `MimecastSEGEvent_CL` or `MimecastSIEM_CL`\n- Via Mimecast solution DLP/TTP: `MimecastDLP` (columns may include `Action`, `Recipient Address` with spaces)\n- Mimecast actions are often `Held` / `hold`, not `Hold` — the Email tab normalises action values to lowercase\n- Run **Step 3c** if the bottom Mimecast grid is empty: check `DistinctActions` and `RecipientsPopulated`\n\n**Entra ID risk data** (`RiskLevelDuringSignIn`) requires Azure AD Identity Protection P2 licence. Without it the column exists but all values are `none`.\n\n**DeviceTvmSoftwareVulnerabilities** uses a 90-day lookback and `arg_max` per device+CVE (current posture, not workbook time range only). TVM may lag MDE portal by up to 24 hours.\n\n**Weekly CVE / KEV trend metrics:** For each calendar week, TVM rows are grouped by `startofweek(TimeGenerated)`. Within each week, `arg_max(TimeGenerated, *)` is taken per `DeviceId` + normalized `CveId` — the latest snapshot for that device+CVE in that week. Weekly counts are `dcount` of distinct CVE IDs (or KEV-filtered CVE IDs) after that snapshot. This is an end-of-week posture snapshot, not cumulative new CVEs discovered in the week.\n\n**Zero vs non-zero:** Overview **Total Open CVEs** > 0 but **KEV Matches** = 0 means no overlap with the `CISA-KEV` watchlist (run Step 1c). **VIB Priority CVEs** = 0 often means none of the fixed CVE-2026-* IDs exist in your estate — expected for many tenants.\n\n**KEV watchlist:** SearchKey must be `cveID` (or use a `cveID` column); workbook normalises IDs to uppercase before join."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
