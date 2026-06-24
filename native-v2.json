@@ -3639,9 +3639,66 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Mean time to detect — first activity to incident creation\nunion isfuzzy=true SecurityIncident\n| where CreatedTime > ago(90d)\n| where isnotempty(FirstActivityTime)\n| extend MTTDHours = datetime_diff('minute', CreatedTime, FirstActivityTime) / 60.0\n| where MTTDHours >= 0 and MTTDHours <= 720\n| summarize ['Avg MTTD (hrs)'] = round(avg(MTTDHours), 1)",
+        "query": "// SOC Incident Performance — 90-day rolling, P50/P90 median (not avg)\nlet Lookback = 90d;\nSecurityIncident\n| where isnotempty(IncidentNumber) and isnotempty(CreatedTime)\n| where CreatedTime >= ago(Lookback)\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| extend\n    TTT_hours = iff(isnotnull(CreatedTime) and isnotnull(FirstModifiedTime),\n                    datetime_diff('minute', FirstModifiedTime, CreatedTime) / 60.0, real(null)),\n    TTC_hours = iff(isnotnull(CreatedTime) and isnotnull(ClosedTime),\n                    datetime_diff('minute', ClosedTime, CreatedTime) / 60.0, real(null)),\n    TTD_hours = iff(isnotnull(FirstActivityTime) and isnotnull(CreatedTime),\n                    datetime_diff('minute', CreatedTime, FirstActivityTime) / 60.0, real(null))\n| summarize\n    TotalIncidents        = dcount(IncidentNumber),\n    ['High 🔴']           = countif(Severity == 'High'),\n    ['Medium 🟡']         = countif(Severity == 'Medium'),\n    ['Low 🟢']            = countif(Severity == 'Low'),\n    Informational         = countif(Severity == 'Informational'),\n    ['MTTT/H (P50 hrs)']  = round(percentile(TTT_hours, 50), 1),\n    ['MTTC (P50 hrs)']    = round(percentile(TTC_hours, 50), 1),\n    ['MTTD (P50 hrs)']    = round(percentile(TTD_hours, 50), 1),\n    ['MTTC worst 10%']    = round(percentile(TTC_hours, 90), 1)",
         "size": 4,
-        "title": "Avg MTTD — hrs (90d)",
+        "title": "SOC Incident Performance — Last 90 Days (P50 Median)",
+        "timeContext": {
+          "durationMs": 0
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "TotalIncidents",
+              "formatter": 4,
+              "formatOptions": {
+                "palette": "blue"
+              }
+            },
+            {
+              "columnMatch": "High",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">",
+                    "thresholdValue": "0",
+                    "representation": "2",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "success",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "MTTC (P50 hrs)",
+              "formatter": 4,
+              "formatOptions": {
+                "palette": "redGreen",
+                "min": 0,
+                "max": 48
+              }
+            }
+          ]
+        }
+      },
+      "name": "exec-soc-summary-table"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Median MTTD (P50) — detection latency, 90-day fixed\nSecurityIncident\n| where isnotnull(FirstActivityTime) and isnotnull(CreatedTime)\n| where CreatedTime >= ago(90d)\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| extend TTD_hours = datetime_diff('minute', CreatedTime, FirstActivityTime) / 60.0\n| where TTD_hours >= 0\n| summarize ['Median MTTD (hrs)'] = round(percentile(TTD_hours, 50), 1)",
+        "size": 4,
+        "title": "Median MTTD (P50, hrs)",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
         "visualization": "tiles",
@@ -3726,9 +3783,9 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// % of successful sign-ins that used MFA\nunion isfuzzy=true SigninLogs\n| where TimeGenerated > ago(90d)\n| where ResultType == \"0\"\n| summarize\n    Total   = count(),\n    WithMFA = countif(AuthenticationRequirement == \"multiFactorAuthentication\")\n| extend ['MFA Coverage %'] = round(100.0 * WithMFA / iff(Total==0,1,Total), 1)\n| project ['MFA Coverage %']",
+        "query": "// MFA coverage — overall + privileged accounts, 90-day fixed\nlet PrivUsers = IdentityInfo\n    | mv-expand AssignedRoles\n    | where AssignedRoles contains 'Admin'\n    | distinct AccountUPN;\nSigninLogs\n| where TimeGenerated >= ago(90d)\n| where ResultType == 0\n| extend IsPriv = iff(UserPrincipalName in (PrivUsers), 1, 0)\n| summarize\n    Total        = count(),\n    MFALogins    = countif(AuthenticationRequirement == 'multiFactorAuthentication'),\n    PrivTotal    = countif(IsPriv == 1),\n    PrivMFA      = countif(IsPriv == 1 and AuthenticationRequirement == 'multiFactorAuthentication')\n| extend\n    ['Overall MFA %']     = round(toreal(MFALogins) / Total * 100.0, 1),\n    ['Privileged MFA %']  = iff(PrivTotal == 0, real(null), round(toreal(PrivMFA) / PrivTotal * 100.0, 1))\n| project ['Overall MFA %'], ['Privileged MFA %']",
         "size": 4,
-        "title": "MFA Coverage Rate (90d)",
+        "title": "MFA Coverage — Overall & Privileged",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
         "visualization": "tiles",
@@ -3786,9 +3843,9 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Fixed 90d — P1/P2 incidents created and closed each week\nunion isfuzzy=true SecurityIncident\n| summarize arg_max(LastModifiedTime,*) by IncidentNumber\n| where Severity in (\"Critical\",\"High\")\n| extend WeekCreated = bin(CreatedTime, 7d)\n| extend WeekClosed  = iff(Status in (\"Closed\",\"Resolved\") and ClosedTime > ago(90d), bin(ClosedTime,7d), datetime(null))\n| where CreatedTime > ago(90d) or isnotempty(WeekClosed)\n| summarize\n    ['Incidents Created'] = dcountif(IncidentNumber, CreatedTime > ago(90d)),\n    ['Incidents Closed']  = dcountif(IncidentNumber, isnotempty(WeekClosed))\n    by Week = WeekCreated\n| where isnotempty(Week)\n| sort by Week asc",
+        "query": "// Daily incident volume — 90-day history + 30-day forecast\nlet LookbackDays = 90d;\nlet ForecastDays = 30;\nlet EndDate   = now();\nlet StartDate = EndDate - LookbackDays;\nlet ProjectTo = EndDate + (ForecastDays * 1d);\nSecurityIncident\n| make-series IncidentCount = dcount(IncidentNumber) default=0\n    on TimeGenerated from StartDate to ProjectTo step 1d\n| extend Forecast = series_decompose_forecast(IncidentCount, ForecastDays)\n| mv-expand TimeGenerated to typeof(datetime), IncidentCount to typeof(long), Forecast to typeof(real)\n| project TimeGenerated,\n    ['Actual Incidents'] = todouble(IncidentCount),\n    ['30-day Forecast']  = Forecast\n| render timechart",
         "size": 0,
-        "title": "90-Day Weekly Incidents Created vs Closed",
+        "title": "Daily Incidents — 90-Day History + 30-Day Forecast",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
         "visualization": "timechart"
@@ -3843,9 +3900,9 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "// Fixed 90d — MTTR trend\nunion isfuzzy=true SecurityIncident\n| where ClosedTime > ago(90d)\n| where Status in (\"Closed\",\"Resolved\")\n| extend MTTR = datetime_diff('minute', ClosedTime, CreatedTime) / 60.0\n| summarize ['Avg MTTR (hrs)'] = round(avg(MTTR), 1) by bin(ClosedTime, 7d)\n| sort by ClosedTime asc",
+        "query": "// MTTT / MTTC / MTTD weekly medians — 90-day fixed window\nlet Lookback = 90d;\nSecurityIncident\n| where TimeGenerated >= ago(Lookback)\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| extend\n    TTT_hours = iff(isnotnull(CreatedTime) and isnotnull(FirstModifiedTime),\n                    datetime_diff('minute', FirstModifiedTime, CreatedTime) / 60.0, real(null)),\n    TTC_hours = iff(isnotnull(CreatedTime) and isnotnull(ClosedTime),\n                    datetime_diff('minute', ClosedTime, CreatedTime) / 60.0, real(null)),\n    TTD_hours = iff(isnotnull(FirstActivityTime) and isnotnull(CreatedTime),\n                    datetime_diff('minute', CreatedTime, FirstActivityTime) / 60.0, real(null))\n| summarize\n    ['MTTT/H (P50 hrs)'] = round(percentile(TTT_hours, 50), 1),\n    ['MTTC (P50 hrs)']   = round(percentile(TTC_hours, 50), 1),\n    ['MTTD (P50 hrs)']   = round(percentile(TTD_hours, 50), 1),\n    ['MTTC P90 (hrs)']   = round(percentile(TTC_hours, 90), 1)\n  by TimeBucket = bin(TimeGenerated, 7d)\n| sort by TimeBucket asc\n| render timechart",
         "size": 0,
-        "title": "90-Day Weekly Avg MTTR (hours)",
+        "title": "MTTT / MTTC / MTTD — Weekly Medians (P50), 90-Day Fixed",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
         "visualization": "timechart"
