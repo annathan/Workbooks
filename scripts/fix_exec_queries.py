@@ -6,8 +6,9 @@ PATH = "/home/user/Workbooks/native-v2.json"
 
 QOQ_QUERY = (
     "// Quarter-over-quarter KPI comparison — auto-calculates current vs previous quarter\n"
-    "let TQ  = startofquarter(now());\n"
-    "let LQ  = startofquarter(ago(91d));\n"
+    "let now_ = now();\n"
+    "let TQ   = datetime_add('month', -((monthofyear(now_) - 1) % 3), startofmonth(now_));\n"
+    "let LQ   = datetime_add('month', -3, TQ);\n"
     "// Alerts\n"
     "let a1 = toscalar(union isfuzzy=true SecurityAlert\n"
     "    | where TimeGenerated >= TQ\n"
