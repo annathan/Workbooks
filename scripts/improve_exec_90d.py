@@ -131,7 +131,12 @@ SOC_SUMMARY_ITEM = {
             ]
         }
     },
-    "name": "exec-soc-summary-table"
+    "name": "exec-soc-summary-table",
+    "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "executive"
+    }
 }
 
 patched = {
@@ -142,18 +147,21 @@ patched = {
 }
 
 patched_count = 0
-inserted = False
+already_present = any(item.get("name") == "exec-soc-summary-table" for item in wb["items"])
+inserted = already_present
 new_items = []
 
 for item in wb["items"]:
     new_items.append(item)
     name = item.get("name", "")
 
-    # Insert SOC summary table after exec-efficiency-heading
+    # Insert SOC summary table after exec-efficiency-heading (only if not already present)
     if name == "exec-efficiency-heading" and not inserted:
         new_items.append(SOC_SUMMARY_ITEM)
         inserted = True
         print("Inserted: exec-soc-summary-table")
+    elif name == "exec-efficiency-heading" and already_present:
+        print("Skipped: exec-soc-summary-table already present")
 
     if name in patched:
         item["content"]["query"] = patched[name]
