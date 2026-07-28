@@ -13,6 +13,19 @@ so you can start with one service and add the others later.
 
 ## Setup
 
+**Windows:**
+
+```powershell
+cd scripts\daily_checks
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+# edit .env with your credentials
+```
+
+**macOS/Linux:**
+
 ```bash
 cd scripts/daily_checks
 python3 -m venv .venv && source .venv/bin/activate
@@ -20,6 +33,10 @@ pip install -r requirements.txt
 cp .env.example .env
 # edit .env with your credentials
 ```
+
+Whichever command actually resolves to Python 3 on your machine (`python`
+or `python3` — check with `python --version`) works throughout this doc;
+substitute it for whichever one is shown.
 
 ### ServiceNow
 
