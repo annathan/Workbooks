@@ -23,10 +23,23 @@ cp .env.example .env
 ### ServiceNow
 
 Uses the Table API with basic auth. Create (or reuse) a service account with
-read access to the `incident` table, and set `SNOW_INSTANCE_URL`,
-`SNOW_USERNAME`, `SNOW_PASSWORD`. Set `SNOW_ASSIGNMENT_GROUP` to your team's
-group name to filter workload to just your team; leave it blank to see all
-open incidents.
+read access to the `incident`, `sc_req_item`, and `sc_task` tables, and set
+`SNOW_INSTANCE_URL`, `SNOW_USERNAME`, `SNOW_PASSWORD`. Set
+`SNOW_ASSIGNMENT_GROUP` to your team's group name to filter workload to just
+your team; leave it blank to see everything open across those tables (can be
+slow/noisy on a large instance).
+
+The daily report covers incidents (INC), requested items (RITM), and catalog
+tasks (SCTASK) — not just incidents — since those are what tend to come up
+when someone asks "are you aware of this". For a one-off check against a
+specific number, skip the full report:
+
+```bash
+python main.py --lookup RITM0012345
+```
+
+This works for INC/RITM/SCTASK/REQ/PRB/CHG numbers and prints just that
+ticket's state, assignee, and last-updated time.
 
 ### Microsoft Sentinel / Defender
 
@@ -41,6 +54,14 @@ on the workspace, and set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
 Uses an Armis secret key to obtain a short-lived access token, then queries
 unhandled alerts via the Armis Query Language (AQL) search endpoint. Set
 `ARMIS_BASE_URL` and `ARMIS_SECRET_KEY`.
+
+### Standup prep
+
+Always included, needs no configuration. Your team's standup is verbal with
+no system of record, so this isn't pulled data — it's just the three
+categories you track (interesting work, blockers, help needed) printed as
+prompts so they're in front of you before the call. Drop `standup` from
+`--services` if you don't want it in the report.
 
 ## Running it
 
