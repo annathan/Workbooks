@@ -1,0 +1,5 @@
+.env
+.venv/
+daily_checks_reports/
+__pycache__/
+*.pyc
