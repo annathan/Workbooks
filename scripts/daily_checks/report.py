@@ -73,5 +73,5 @@ def render_markdown(sections: List[Section]) -> str:
 def write_report(sections: List[Section], output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / f"daily-checks-{datetime.now().strftime('%Y%m%d-%H%M%S')}.md"
-    path.write_text(render_markdown(sections))
+    path.write_text(render_markdown(sections), encoding="utf-8")
     return path

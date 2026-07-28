@@ -66,6 +66,13 @@ def build_sections(services, lookback_hours):
 
 
 def main():
+    # Some Windows terminals default stdout to a legacy codepage (e.g. cp1252)
+    # that can't encode the status icons/em-dashes in the report.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
+
     parser = argparse.ArgumentParser(description="Run daily team/security checks.")
     parser.add_argument(
         "--services", nargs="+", choices=["servicenow", "sentinel", "armis", "standup"],
