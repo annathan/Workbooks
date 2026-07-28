@@ -1,14 +1,15 @@
 # Daily Checks
 
-A small Python CLI that pulls your team's workload from ServiceNow and your
-security posture from Microsoft Sentinel/Defender and Armis into a single
-morning report — console output plus a saved markdown file. No agents, no
-persistent service required; just a Python process you run yourself or
-schedule with cron / Task Scheduler.
+A small Python CLI that pulls your team's workload from ServiceNow and
+alerts from Armis into a single morning report — console output plus a
+saved markdown file. Microsoft Sentinel/Defender is also available but
+opt-in by default (see below). No agents, no persistent service required;
+just a Python process you run yourself or schedule with cron / Task
+Scheduler.
 
-Each of the three integrations is independent and optional. Anything you
-haven't configured shows up as "skipped" in the report instead of failing
-the run, so you can start with one service and add the others later.
+Each integration is independent and optional. Anything you haven't
+configured shows up as "skipped" in the report instead of failing the run,
+so you can start with one service and add the others later.
 
 ## Setup
 
@@ -41,7 +42,16 @@ python main.py --lookup RITM0012345
 This works for INC/RITM/SCTASK/REQ/PRB/CHG numbers and prints just that
 ticket's state, assignee, and last-updated time.
 
-### Microsoft Sentinel / Defender
+### Microsoft Sentinel / Defender (opt-in)
+
+Not included in the default `--services` list — MSP-managed tickets tend to
+live here rather than needing daily attention from you. Configure it the
+same way as the others (it's still skipped gracefully if unconfigured), and
+pull it into a run explicitly:
+
+```bash
+python main.py --services servicenow armis sentinel standup
+```
 
 Queries `SecurityIncident` in the same Log Analytics workspace the workbooks
 in this repo already use, via the Azure Monitor Query SDK. Register an Azure
@@ -66,7 +76,7 @@ prompts so they're in front of you before the call. Drop `standup` from
 ## Running it
 
 ```bash
-python main.py                       # all configured services
+python main.py                       # default: servicenow, armis, standup
 python main.py --services servicenow # just one
 python main.py --no-file             # console only, don't save a report
 ```

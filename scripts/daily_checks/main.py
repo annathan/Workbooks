@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Daily checks: pulls team workload from ServiceNow and security posture from
-Microsoft Sentinel/Defender (Log Analytics) and Armis into a single report.
+"""Daily checks: pulls team workload from ServiceNow and alerts from Armis
+into a single report. Microsoft Sentinel/Defender (Log Analytics) is also
+available but opt-in by default, since MSP-managed tickets tend to live
+there rather than needing daily attention.
 
 Configure via environment variables — copy .env.example to .env and fill in
 whichever services you use; unconfigured services are skipped, not errors.
 
 Run manually:
     python main.py
+    python main.py --services servicenow armis sentinel standup  # include sentinel
     python main.py --lookup RITM0012345   # ad-hoc single-ticket check
 
 Or schedule it (cron example, run every weekday morning at 7:30):
@@ -66,8 +69,9 @@ def main():
     parser = argparse.ArgumentParser(description="Run daily team/security checks.")
     parser.add_argument(
         "--services", nargs="+", choices=["servicenow", "sentinel", "armis", "standup"],
-        default=["servicenow", "sentinel", "armis", "standup"],
-        help="Limit to specific services (default: all).",
+        default=["servicenow", "armis", "standup"],
+        help="Limit to specific services (default: servicenow, armis, standup — "
+             "sentinel is opt-in since MSP-managed tickets tend to live there).",
     )
     parser.add_argument(
         "--no-file", action="store_true",
