@@ -392,14 +392,15 @@ items.append(kql_item(
     "exec-coverage-table",
     "Coverage Snapshot",
     PROJECT_USERS_ALL +
-    "let Personnel = toscalar(ProjectUsers | where Status =~ \"Active\" | summarize coalesce(dcount(UserUPN), 0));\n"
+    "let ActiveUsers = ProjectUsers | where Status =~ \"Active\";\n"
+    "let Personnel = toscalar(ActiveUsers | summarize coalesce(dcount(UserUPN), 0));\n"
     "let LastReview = toscalar(ProjectUsers | summarize coalesce(max(LastUpdated), datetime(null)));\n"
     "let Devices = toscalar(\n"
     "    " + NETWORK_UNION.replace("\n", "\n    ").rstrip() + "\n"
     "    | where Timestamp > ago(30d)\n"
     "    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n"
     "    | where isnotempty(UserUPN)\n"
-    "    | join kind=inner (ProjectUsers | where Status =~ \"Active\") on UserUPN\n"
+    "    | join kind=inner ActiveUsers on UserUPN\n"
     "    | summarize coalesce(dcount(DeviceName), 0));\n"
     "print ['Staff Covered'] = Personnel, ['Devices Seen (30d)'] = Devices, ['Last Watchlist Review'] = LastReview",
     "table", tab="executive",
