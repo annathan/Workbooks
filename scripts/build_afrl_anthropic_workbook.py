@@ -46,7 +46,7 @@ PROJECT_USERS_ALL = (
     "        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n"
     "        Name        = column_ifexists('Name', ''),\n"
     "        Project     = column_ifexists('Project', ''),\n"
-    "        LastUpdated = TimeGenerated\n"
+    "        LastUpdated = column_ifexists('LastUpdatedTimeUTC', column_ifexists('TimeGenerated', datetime(null)))\n"
     "    | where isnotempty(UserUPN);\n"
 )
 

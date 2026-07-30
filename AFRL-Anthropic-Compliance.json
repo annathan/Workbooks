@@ -309,7 +309,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize ['Staff Covered'] = dcount(UserUPN)",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = column_ifexists('LastUpdatedTimeUTC', column_ifexists('TimeGenerated', datetime(null)))\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize ['Staff Covered'] = dcount(UserUPN)",
         "size": 4,
         "title": "Staff Covered",
         "queryType": 0,
@@ -338,7 +338,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp > ago(30d)\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| summarize ['Devices Seen (30d)'] = dcount(DeviceName)",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = column_ifexists('LastUpdatedTimeUTC', column_ifexists('TimeGenerated', datetime(null)))\n    | where isnotempty(UserUPN);\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp > ago(30d)\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| summarize ['Devices Seen (30d)'] = dcount(DeviceName)",
         "size": 4,
         "title": "Devices Seen (30d)",
         "queryType": 0,
@@ -367,7 +367,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize ['Last Watchlist Review'] = max(LastUpdated)",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = column_ifexists('LastUpdatedTimeUTC', column_ifexists('TimeGenerated', datetime(null)))\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize ['Last Watchlist Review'] = max(LastUpdated)",
         "size": 4,
         "title": "Last Watchlist Review",
         "queryType": 0,
@@ -652,7 +652,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize ['Staff Under Monitoring'] = dcount(UserUPN)",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = column_ifexists('LastUpdatedTimeUTC', column_ifexists('TimeGenerated', datetime(null)))\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize ['Staff Under Monitoring'] = dcount(UserUPN)",
         "size": 4,
         "title": "Staff Under Monitoring",
         "queryType": 0,
@@ -681,7 +681,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize ['Last Watchlist Update'] = max(LastUpdated)",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = column_ifexists('LastUpdatedTimeUTC', column_ifexists('TimeGenerated', datetime(null)))\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize ['Last Watchlist Update'] = max(LastUpdated)",
         "size": 4,
         "title": "Last Watchlist Update",
         "queryType": 0,
@@ -710,7 +710,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\nProjectUsers\n| project UserUPN, Name, Project, LastUpdated\n| sort by Name asc",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = column_ifexists('LastUpdatedTimeUTC', column_ifexists('TimeGenerated', datetime(null)))\n    | where isnotempty(UserUPN);\nProjectUsers\n| project UserUPN, Name, Project, LastUpdated\n| sort by Name asc",
         "size": 0,
         "title": "Monitored Personnel Roster",
         "queryType": 0,
@@ -1017,7 +1017,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize TotalEntries = count(), LatestUpdate = max(LastUpdated)",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = column_ifexists('LastUpdatedTimeUTC', column_ifexists('TimeGenerated', datetime(null)))\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize TotalEntries = count(), LatestUpdate = max(LastUpdated)",
         "size": 0,
         "title": "Step 3a: DoD-Anthropic-Monitoring Watchlist Status",
         "queryType": 0,
