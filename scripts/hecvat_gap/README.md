@@ -85,6 +85,15 @@ python main.py \
   cell references, since HECVAT versions and vendor customizations vary.
   If your real files use different wording, extend `LABEL_PATTERNS` in
   `hecvat_parser.py`.
+- **If a file has no recognizable Vendor field at all** (some exports don't
+  carry one, and the ticket's own description is often generic boilerplate
+  like "Fulfill the Item..." rather than anything vendor-specific), the
+  parser falls back to guessing the vendor from the downloaded filename —
+  so name your downloads with the vendor in them, e.g.
+  `RITM0012345_Zoom.xlsx`. Filename-derived vendors are marked `LOW —
+  verify` in the register's "Vendor Match Confidence" column and listed in
+  the **Parse Issues** sheet — treat those rows as needing a manual glance,
+  not as ground truth.
 - **No CMDB/Armis dedup beyond exact-string.** If your Armis export lists
   "Google Chrome" and "Chrome" as separate rows, they'll show up as two
   register entries; a normalization pass could merge these but wasn't

@@ -22,6 +22,12 @@ TICKET_NUMBER_RE = re.compile(r"(RITM|INC|REQ|SCTASK)\d+", re.I)
 
 DATE_FORMATS = ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%B %d, %Y", "%b %d, %Y", "%d-%b-%Y")
 
+# Words that show up in downloaded HECVAT filenames but aren't the vendor name,
+# stripped out when falling back to guessing the vendor from the filename.
+FILENAME_STOPWORDS = {
+    "hecvat", "lite", "full", "assessment", "questionnaire", "vendor", "final", "signed", "v1", "v2", "v3", "copy",
+}
+
 
 @dataclass
 class HecvatRecord:
@@ -30,6 +36,7 @@ class HecvatRecord:
     vendor: str | None
     product: str | None
     assessment_date: datetime | None
+    vendor_source: str | None = None  # "cell" or "filename" -- lets callers weight confidence
     issues: list = field(default_factory=list)
 
 
@@ -67,6 +74,13 @@ def _coerce_date(value):
     return None
 
 
+def _vendor_from_filename(path: Path) -> str | None:
+    stem = TICKET_NUMBER_RE.sub("", path.stem)
+    words = [w for w in re.split(r"[_\-. ]+", stem) if w and w.lower() not in FILENAME_STOPWORDS]
+    guess = " ".join(words).strip()
+    return guess or None
+
+
 def parse_file(path: Path) -> HecvatRecord:
     ticket_match = TICKET_NUMBER_RE.search(path.stem)
     ticket_number = ticket_match.group(0).upper() if ticket_match else None
@@ -74,7 +88,7 @@ def parse_file(path: Path) -> HecvatRecord:
     try:
         wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
     except Exception as exc:
-        return HecvatRecord(str(path), ticket_number, None, None, None, [f"could not open: {exc}"])
+        return HecvatRecord(str(path), ticket_number, None, None, None, issues=[f"could not open: {exc}"])
 
     vendor = product = date_val = None
     for ws in wb.worksheets:
@@ -83,9 +97,24 @@ def parse_file(path: Path) -> HecvatRecord:
         date_val = date_val or _find_value(ws, LABEL_PATTERNS["date"])
     wb.close()
 
+    vendor = _clean(vendor)
     issues = []
+    vendor_source = "cell" if vendor else None
+
     if not vendor:
-        issues.append("vendor name not found")
+        # No "Vendor Name"-style field found in the file itself -- fall back to
+        # guessing from the downloaded filename (e.g. "RITM0012345_Zoom.xlsx").
+        # This is a real gap some HECVAT exports hit, not just a hypothetical:
+        # some org's exported questionnaires omit a labeled vendor field, or
+        # the tickets/attachments simply don't carry it at all.
+        filename_guess = _vendor_from_filename(path)
+        if filename_guess:
+            vendor = filename_guess
+            vendor_source = "filename"
+            issues.append(f"vendor name not found in file; inferred {vendor!r} from filename -- verify")
+        else:
+            issues.append("vendor name not found in file or filename")
+
     if not date_val:
         issues.append("assessment date not found")
 
@@ -93,7 +122,7 @@ def parse_file(path: Path) -> HecvatRecord:
     if date_val and not parsed_date:
         issues.append(f"could not parse date value: {date_val!r}")
 
-    return HecvatRecord(str(path), ticket_number, _clean(vendor), _clean(product), parsed_date, issues)
+    return HecvatRecord(str(path), ticket_number, vendor, _clean(product), parsed_date, vendor_source, issues)
 
 
 def parse_directory(dir_path: Path) -> list[HecvatRecord]:
