@@ -304,14 +304,14 @@ items.append(kql_item(
     "Compliance Status",
     PROJECT_USERS_ACTIVE +
     "let ThisMonth = startofmonth(now());\n" +
-    "let Detections = toscalar(\n"
+    "let AnthropicHits =\n"
     "    " + NETWORK_UNION.replace("\n", "\n    ").rstrip() + "\n"
     "    | where Timestamp >= ThisMonth\n"
     f"    | where RemoteUrl has_any (\n        {ANTHROPIC_DOMAINS})\n"
     "    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n"
     "    | where isnotempty(UserUPN)\n"
-    "    | join kind=inner ProjectUsers on UserUPN\n"
-    "    | summarize coalesce(count(), 0));\n"
+    "    | join kind=inner ProjectUsers on UserUPN;\n"
+    "let Detections = toscalar(AnthropicHits | summarize coalesce(count(), 0));\n"
     "let OpenInvestigations = toscalar(\n"
     "    union isfuzzy=true SecurityIncident\n"
     f'    | where Title == "{RULE_TITLE}"\n'
@@ -341,14 +341,14 @@ items.append(kql_item(
     "let ThisMonth = startofmonth(now());\n"
     "let MonthName = format_datetime(now(), 'MMMM yyyy');\n"
     "let PersonnelCount = toscalar(ProjectUsers | summarize coalesce(dcount(UserUPN), 0));\n"
-    "let Detections = toscalar(\n"
+    "let AnthropicHits =\n"
     "    " + NETWORK_UNION.replace("\n", "\n    ").rstrip() + "\n"
     "    | where Timestamp >= ThisMonth\n"
     f"    | where RemoteUrl has_any (\n        {ANTHROPIC_DOMAINS})\n"
     "    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n"
     "    | where isnotempty(UserUPN)\n"
-    "    | join kind=inner ProjectUsers on UserUPN\n"
-    "    | summarize coalesce(count(), 0));\n"
+    "    | join kind=inner ProjectUsers on UserUPN;\n"
+    "let Detections = toscalar(AnthropicHits | summarize coalesce(count(), 0));\n"
     "let StatusText = iff(Detections == 0,\n"
     "    \"No access to Anthropic services was detected\",\n"
     "    strcat(tostring(Detections), \" access event(s) to Anthropic services were detected and are under review\"));\n"
@@ -370,20 +370,37 @@ items.append(md_item(
 ))
 
 items.append(kql_item(
-    "exec-coverage-table",
-    "Coverage Snapshot",
+    "exec-coverage-tile-staff",
+    "Staff Covered",
     PROJECT_USERS_ALL +
-    "let Personnel = toscalar(ProjectUsers | summarize coalesce(dcount(UserUPN), 0));\n"
-    "let LastReview = toscalar(ProjectUsers | summarize coalesce(max(LastUpdated), datetime(null)));\n"
-    "let Devices = toscalar(\n"
-    "    " + NETWORK_UNION.replace("\n", "\n    ").rstrip() + "\n"
-    "    | where Timestamp > ago(30d)\n"
-    "    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n"
-    "    | where isnotempty(UserUPN)\n"
-    "    | join kind=inner ProjectUsers on UserUPN\n"
-    "    | summarize coalesce(dcount(DeviceName), 0));\n"
-    "print ['Staff Covered'] = Personnel, ['Devices Seen (30d)'] = Devices, ['Last Watchlist Review'] = LastReview",
-    "table", tab="executive",
+    "ProjectUsers\n"
+    "| summarize ['Staff Covered'] = dcount(UserUPN)",
+    "tiles", size=4, tile_col="Staff Covered", tile_palette="blue",
+    tab="executive", custom_width=33,
+))
+
+items.append(kql_item(
+    "exec-coverage-tile-devices",
+    "Devices Seen (30d)",
+    PROJECT_USERS_ALL +
+    NETWORK_UNION +
+    "| where Timestamp > ago(30d)\n"
+    "| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n"
+    "| where isnotempty(UserUPN)\n"
+    "| join kind=inner ProjectUsers on UserUPN\n"
+    "| summarize ['Devices Seen (30d)'] = dcount(DeviceName)",
+    "tiles", size=4, tile_col="Devices Seen (30d)", tile_palette="blue",
+    tab="executive", custom_width=33,
+))
+
+items.append(kql_item(
+    "exec-coverage-tile-lastreview",
+    "Last Watchlist Review",
+    PROJECT_USERS_ALL +
+    "ProjectUsers\n"
+    "| summarize ['Last Watchlist Review'] = max(LastUpdated)",
+    "tiles", size=4, tile_col="Last Watchlist Review", tile_palette="blue",
+    tab="executive", custom_width=33,
 ))
 
 items.append(md_item(
