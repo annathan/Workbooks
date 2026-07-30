@@ -29,9 +29,13 @@ audit-ready monthly compliance record. Three parts:
 
 - **`watchlists/DoD-Anthropic-Monitoring.csv`** — the watchlist schema/import
   template. Import into Sentinel as a watchlist named exactly
-  `DoD-Anthropic-Monitoring` with `UserUPN` as the SearchKey. Keep removed
-  staff as rows (`Status=Removed` + `DateRemoved`) rather than deleting them,
-  so the audit trail stays complete.
+  `DoD-Anthropic-Monitoring`; minimum columns are `UserUPN, Name, Project`
+  (SearchKey can be set to whatever you like — the workbook always resolves
+  the real `UserUPN` column and only falls back to SearchKey if it's
+  missing). Optionally add `Status`/`DateAdded`/`DateRemoved` columns if you
+  want the Monitored User Coverage tab to track *when* staff were added or
+  removed rather than just who's currently monitored — the shipped workbook
+  doesn't require them.
 - **`analytics-rules/afrl-anthropic-access-detection.json`** — an ARM
   template for the Scheduled analytics rule that creates a Sentinel incident
   when a monitored user is observed accessing an Anthropic domain. Deploy it

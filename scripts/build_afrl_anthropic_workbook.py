@@ -46,10 +46,6 @@ PROJECT_USERS_ALL = (
     "        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n"
     "        Name        = column_ifexists('Name', ''),\n"
     "        Project     = column_ifexists('Project', ''),\n"
-    "        Status      = column_ifexists('Status', 'Active'),\n"
-    "        DateAdded   = column_ifexists('DateAdded', ''),\n"
-    "        DateRemoved = column_ifexists('DateRemoved', ''),\n"
-    "        Notes       = column_ifexists('Notes', ''),\n"
     "        LastUpdated = TimeGenerated\n"
     "    | where isnotempty(UserUPN);\n"
 )
@@ -146,21 +142,6 @@ def kql_item(name, title, query, viz, size=0, custom_width=None,
 def md_item(name, text, tab):
     return {"type": 1, "content": {"json": text}, "conditionalVisibility": vis(tab), "name": name}
 
-
-THRESH_STATUS = [
-    {
-        "columnMatch": "Status",
-        "formatter": 18,
-        "formatOptions": {
-            "thresholdsOptions": "colors",
-            "thresholdsGrid": [
-                {"operator": "==", "thresholdValue": "Active", "representation": "green", "text": "{0}"},
-                {"operator": "==", "thresholdValue": "Removed", "representation": "gray", "text": "{0}"},
-                {"operator": "Default", "representation": "yellow", "text": "{0}"},
-            ],
-        },
-    }
-]
 
 THRESH_MANAGED = [
     {
@@ -392,15 +373,14 @@ items.append(kql_item(
     "exec-coverage-table",
     "Coverage Snapshot",
     PROJECT_USERS_ALL +
-    "let ActiveUsers = ProjectUsers | where Status =~ \"Active\";\n"
-    "let Personnel = toscalar(ActiveUsers | summarize coalesce(dcount(UserUPN), 0));\n"
+    "let Personnel = toscalar(ProjectUsers | summarize coalesce(dcount(UserUPN), 0));\n"
     "let LastReview = toscalar(ProjectUsers | summarize coalesce(max(LastUpdated), datetime(null)));\n"
     "let Devices = toscalar(\n"
     "    " + NETWORK_UNION.replace("\n", "\n    ").rstrip() + "\n"
     "    | where Timestamp > ago(30d)\n"
     "    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n"
     "    | where isnotempty(UserUPN)\n"
-    "    | join kind=inner ActiveUsers on UserUPN\n"
+    "    | join kind=inner ProjectUsers on UserUPN\n"
     "    | summarize coalesce(dcount(DeviceName), 0));\n"
     "print ['Staff Covered'] = Personnel, ['Devices Seen (30d)'] = Devices, ['Last Watchlist Review'] = LastReview",
     "table", tab="executive",
@@ -549,49 +529,32 @@ items.append(md_item(
     "coverage-heading",
     "## Monitored User Coverage\n"
     "> **Outcome this answers:** can DTS demonstrate that all project personnel were included in "
-    "monitoring? Sourced entirely from the `DoD-Anthropic-Monitoring` watchlist — keep `Status`, "
-    "`DateAdded` and `DateRemoved` current rather than deleting rows, so removed staff stay in "
-    "the audit trail.",
+    "monitoring? Sourced entirely from the `DoD-Anthropic-Monitoring` watchlist (`UserUPN`, "
+    "`Name`, `Project`). This deployment's watchlist doesn't track a `Status`/`DateAdded`/"
+    "`DateRemoved` history, so this tab shows current headcount and roster only — it can't show "
+    "who was added or removed and when. Add those columns to the watchlist later if you want that "
+    "history back; the workbook doesn't require it.",
     "coverage",
 ))
 
 items.append(kql_item(
     "coverage-tile-active",
     "Staff Under Monitoring",
-    PROJECT_USERS_ALL + '| where Status =~ "Active"\n| summarize ['
-    "'Staff Under Monitoring'] = dcount(UserUPN)",
+    PROJECT_USERS_ALL +
+    "ProjectUsers\n"
+    "| summarize ['Staff Under Monitoring'] = dcount(UserUPN)",
     "tiles", size=4, tile_col="Staff Under Monitoring", tile_palette="blue",
-    tab="coverage", custom_width=25,
-))
-
-items.append(kql_item(
-    "coverage-tile-added",
-    "New Staff Added (This Month)",
-    PROJECT_USERS_ALL +
-    '| where Status =~ "Active" and isnotempty(DateAdded)\n'
-    "| where todatetime(DateAdded) >= startofmonth(now())\n"
-    "| summarize ['New This Month'] = dcount(UserUPN)",
-    "tiles", size=4, tile_col="New This Month", tile_palette="green",
-    tab="coverage", custom_width=25,
-))
-
-items.append(kql_item(
-    "coverage-tile-removed",
-    "Staff Removed (This Month)",
-    PROJECT_USERS_ALL +
-    '| where Status =~ "Removed" and isnotempty(DateRemoved)\n'
-    "| where todatetime(DateRemoved) >= startofmonth(now())\n"
-    "| summarize ['Removed This Month'] = dcount(UserUPN)",
-    "tiles", size=4, tile_col="Removed This Month", tile_palette="orange",
-    tab="coverage", custom_width=25,
+    tab="coverage", custom_width=50,
 ))
 
 items.append(kql_item(
     "coverage-tile-lastupdate",
     "Last Watchlist Update",
-    PROJECT_USERS_ALL + "| summarize ['Last Watchlist Update'] = max(LastUpdated)",
+    PROJECT_USERS_ALL +
+    "ProjectUsers\n"
+    "| summarize ['Last Watchlist Update'] = max(LastUpdated)",
     "tiles", size=4, tile_col="Last Watchlist Update", tile_palette="blue",
-    tab="coverage", custom_width=25,
+    tab="coverage", custom_width=50,
 ))
 
 items.append(kql_item(
@@ -599,10 +562,9 @@ items.append(kql_item(
     "Monitored Personnel Roster",
     PROJECT_USERS_ALL +
     "ProjectUsers\n"
-    "| project UserUPN, Name, Project, Status, DateAdded, DateRemoved, Notes, LastUpdated\n"
-    "| sort by Status asc, Name asc",
+    "| project UserUPN, Name, Project, LastUpdated\n"
+    "| sort by Name asc",
     "table", tab="coverage",
-    grid_formatters=THRESH_STATUS,
 ))
 
 # ── DETECTION INVESTIGATIONS ─────────────────────────────────────────────────
@@ -781,11 +743,14 @@ items.append(md_item(
     "setup-heading",
     "## Setup & Validation\n"
     "### Step 1: Create the watchlist\n"
-    "Sentinel → Watchlists → **+ New** → name it exactly `DoD-Anthropic-Monitoring`, "
-    "SearchKey = `UserUPN`. Import `watchlists/DoD-Anthropic-Monitoring.csv` from this repo as "
-    "the starting schema (columns: `UserUPN, Name, Project, Status, DateAdded, DateRemoved, "
-    "Notes`). Keep removed staff as rows with `Status=Removed` and a `DateRemoved` — don't "
-    "delete them — so the audit trail in the **Monitored User Coverage** tab stays complete.\n\n"
+    "Sentinel → Watchlists → **+ New** → name it exactly `DoD-Anthropic-Monitoring`. Minimum "
+    "columns: `UserUPN, Name, Project` (see `watchlists/DoD-Anthropic-Monitoring.csv`). SearchKey "
+    "can be set to whatever you like — the workbook always resolves the real `UserUPN` column "
+    "directly and only falls back to SearchKey if that column is missing.\n\n"
+    "> Optional: add `Status`, `DateAdded`, `DateRemoved` columns if you want the "
+    "**Monitored User Coverage** tab to track *when* staff were added/removed, not just who's "
+    "currently monitored. The workbook shipped here doesn't require them — this deployment's "
+    "watchlist doesn't have them.\n\n"
     "### Step 2: Deploy the analytics rule\n"
     "Deploy `analytics-rules/afrl-anthropic-access-detection.json` to the workspace (Azure "
     "portal → Deploy a custom template, or `az deployment group create`). It creates one Sentinel "
@@ -800,8 +765,7 @@ items.append(kql_item(
     "Step 3a: DoD-Anthropic-Monitoring Watchlist Status",
     PROJECT_USERS_ALL +
     "ProjectUsers\n"
-    "| summarize TotalEntries = count(), Active = countif(Status =~ \"Active\"),\n"
-    "    Removed = countif(Status =~ \"Removed\"), LatestUpdate = max(LastUpdated)",
+    "| summarize TotalEntries = count(), LatestUpdate = max(LastUpdated)",
     "table", tab="setup", custom_width=50,
 ))
 

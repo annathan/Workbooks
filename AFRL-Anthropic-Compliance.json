@@ -309,7 +309,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        Status      = column_ifexists('Status', 'Active'),\n        DateAdded   = column_ifexists('DateAdded', ''),\n        DateRemoved = column_ifexists('DateRemoved', ''),\n        Notes       = column_ifexists('Notes', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\nlet ActiveUsers = ProjectUsers | where Status =~ \"Active\";\nlet Personnel = toscalar(ActiveUsers | summarize coalesce(dcount(UserUPN), 0));\nlet LastReview = toscalar(ProjectUsers | summarize coalesce(max(LastUpdated), datetime(null)));\nlet Devices = toscalar(\n    union isfuzzy=true\n        DeviceNetworkEvents,\n        (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n                   DeviceName:string) [])\n    | where Timestamp > ago(30d)\n    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n    | where isnotempty(UserUPN)\n    | join kind=inner ActiveUsers on UserUPN\n    | summarize coalesce(dcount(DeviceName), 0));\nprint ['Staff Covered'] = Personnel, ['Devices Seen (30d)'] = Devices, ['Last Watchlist Review'] = LastReview",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\nlet Personnel = toscalar(ProjectUsers | summarize coalesce(dcount(UserUPN), 0));\nlet LastReview = toscalar(ProjectUsers | summarize coalesce(max(LastUpdated), datetime(null)));\nlet Devices = toscalar(\n    union isfuzzy=true\n        DeviceNetworkEvents,\n        (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n                   DeviceName:string) [])\n    | where Timestamp > ago(30d)\n    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n    | where isnotempty(UserUPN)\n    | join kind=inner ProjectUsers on UserUPN\n    | summarize coalesce(dcount(DeviceName), 0));\nprint ['Staff Covered'] = Personnel, ['Devices Seen (30d)'] = Devices, ['Last Watchlist Review'] = LastReview",
         "size": 0,
         "title": "Coverage Snapshot",
         "queryType": 0,
@@ -570,7 +570,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## Monitored User Coverage\n> **Outcome this answers:** can DTS demonstrate that all project personnel were included in monitoring? Sourced entirely from the `DoD-Anthropic-Monitoring` watchlist — keep `Status`, `DateAdded` and `DateRemoved` current rather than deleting rows, so removed staff stay in the audit trail."
+        "json": "## Monitored User Coverage\n> **Outcome this answers:** can DTS demonstrate that all project personnel were included in monitoring? Sourced entirely from the `DoD-Anthropic-Monitoring` watchlist (`UserUPN`, `Name`, `Project`). This deployment's watchlist doesn't track a `Status`/`DateAdded`/`DateRemoved` history, so this tab shows current headcount and roster only — it can't show who was added or removed and when. Add those columns to the watchlist later if you want that history back; the workbook doesn't require it."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -583,7 +583,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        Status      = column_ifexists('Status', 'Active'),\n        DateAdded   = column_ifexists('DateAdded', ''),\n        DateRemoved = column_ifexists('DateRemoved', ''),\n        Notes       = column_ifexists('Notes', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\n| where Status =~ \"Active\"\n| summarize ['Staff Under Monitoring'] = dcount(UserUPN)",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize ['Staff Under Monitoring'] = dcount(UserUPN)",
         "size": 4,
         "title": "Staff Under Monitoring",
         "queryType": 0,
@@ -606,71 +606,13 @@
         "value": "coverage"
       },
       "name": "coverage-tile-active",
-      "customWidth": "25"
+      "customWidth": "50"
     },
     {
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        Status      = column_ifexists('Status', 'Active'),\n        DateAdded   = column_ifexists('DateAdded', ''),\n        DateRemoved = column_ifexists('DateRemoved', ''),\n        Notes       = column_ifexists('Notes', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\n| where Status =~ \"Active\" and isnotempty(DateAdded)\n| where todatetime(DateAdded) >= startofmonth(now())\n| summarize ['New This Month'] = dcount(UserUPN)",
-        "size": 4,
-        "title": "New Staff Added (This Month)",
-        "queryType": 0,
-        "resourceType": "microsoft.operationalinsights/workspaces",
-        "visualization": "tiles",
-        "tileSettings": {
-          "titleContent": {
-            "columnMatch": "New This Month",
-            "formatter": 12,
-            "formatOptions": {
-              "palette": "green"
-            }
-          },
-          "showBorder": true
-        }
-      },
-      "conditionalVisibility": {
-        "parameterName": "selectedTab",
-        "comparison": "isEqualTo",
-        "value": "coverage"
-      },
-      "name": "coverage-tile-added",
-      "customWidth": "25"
-    },
-    {
-      "type": 3,
-      "content": {
-        "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        Status      = column_ifexists('Status', 'Active'),\n        DateAdded   = column_ifexists('DateAdded', ''),\n        DateRemoved = column_ifexists('DateRemoved', ''),\n        Notes       = column_ifexists('Notes', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\n| where Status =~ \"Removed\" and isnotempty(DateRemoved)\n| where todatetime(DateRemoved) >= startofmonth(now())\n| summarize ['Removed This Month'] = dcount(UserUPN)",
-        "size": 4,
-        "title": "Staff Removed (This Month)",
-        "queryType": 0,
-        "resourceType": "microsoft.operationalinsights/workspaces",
-        "visualization": "tiles",
-        "tileSettings": {
-          "titleContent": {
-            "columnMatch": "Removed This Month",
-            "formatter": 12,
-            "formatOptions": {
-              "palette": "orange"
-            }
-          },
-          "showBorder": true
-        }
-      },
-      "conditionalVisibility": {
-        "parameterName": "selectedTab",
-        "comparison": "isEqualTo",
-        "value": "coverage"
-      },
-      "name": "coverage-tile-removed",
-      "customWidth": "25"
-    },
-    {
-      "type": 3,
-      "content": {
-        "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        Status      = column_ifexists('Status', 'Active'),\n        DateAdded   = column_ifexists('DateAdded', ''),\n        DateRemoved = column_ifexists('DateRemoved', ''),\n        Notes       = column_ifexists('Notes', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\n| summarize ['Last Watchlist Update'] = max(LastUpdated)",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize ['Last Watchlist Update'] = max(LastUpdated)",
         "size": 4,
         "title": "Last Watchlist Update",
         "queryType": 0,
@@ -693,48 +635,18 @@
         "value": "coverage"
       },
       "name": "coverage-tile-lastupdate",
-      "customWidth": "25"
+      "customWidth": "50"
     },
     {
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        Status      = column_ifexists('Status', 'Active'),\n        DateAdded   = column_ifexists('DateAdded', ''),\n        DateRemoved = column_ifexists('DateRemoved', ''),\n        Notes       = column_ifexists('Notes', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\nProjectUsers\n| project UserUPN, Name, Project, Status, DateAdded, DateRemoved, Notes, LastUpdated\n| sort by Status asc, Name asc",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\nProjectUsers\n| project UserUPN, Name, Project, LastUpdated\n| sort by Name asc",
         "size": 0,
         "title": "Monitored Personnel Roster",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "visualization": "table",
-        "gridSettings": {
-          "formatters": [
-            {
-              "columnMatch": "Status",
-              "formatter": 18,
-              "formatOptions": {
-                "thresholdsOptions": "colors",
-                "thresholdsGrid": [
-                  {
-                    "operator": "==",
-                    "thresholdValue": "Active",
-                    "representation": "green",
-                    "text": "{0}"
-                  },
-                  {
-                    "operator": "==",
-                    "thresholdValue": "Removed",
-                    "representation": "gray",
-                    "text": "{0}"
-                  },
-                  {
-                    "operator": "Default",
-                    "representation": "yellow",
-                    "text": "{0}"
-                  }
-                ]
-              }
-            }
-          ]
-        }
+        "visualization": "table"
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -1023,7 +935,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## Setup & Validation\n### Step 1: Create the watchlist\nSentinel → Watchlists → **+ New** → name it exactly `DoD-Anthropic-Monitoring`, SearchKey = `UserUPN`. Import `watchlists/DoD-Anthropic-Monitoring.csv` from this repo as the starting schema (columns: `UserUPN, Name, Project, Status, DateAdded, DateRemoved, Notes`). Keep removed staff as rows with `Status=Removed` and a `DateRemoved` — don't delete them — so the audit trail in the **Monitored User Coverage** tab stays complete.\n\n### Step 2: Deploy the analytics rule\nDeploy `analytics-rules/afrl-anthropic-access-detection.json` to the workspace (Azure portal → Deploy a custom template, or `az deployment group create`). It creates one Sentinel incident per monitored user per week of activity, titled `AFRL Anthropic Access Detection — Monitored Personnel` — the **Detection Investigations** tab matches on that exact title.\n\n### Step 3: Validate data sources below"
+        "json": "## Setup & Validation\n### Step 1: Create the watchlist\nSentinel → Watchlists → **+ New** → name it exactly `DoD-Anthropic-Monitoring`. Minimum columns: `UserUPN, Name, Project` (see `watchlists/DoD-Anthropic-Monitoring.csv`). SearchKey can be set to whatever you like — the workbook always resolves the real `UserUPN` column directly and only falls back to SearchKey if that column is missing.\n\n> Optional: add `Status`, `DateAdded`, `DateRemoved` columns if you want the **Monitored User Coverage** tab to track *when* staff were added/removed, not just who's currently monitored. The workbook shipped here doesn't require them — this deployment's watchlist doesn't have them.\n\n### Step 2: Deploy the analytics rule\nDeploy `analytics-rules/afrl-anthropic-access-detection.json` to the workspace (Azure portal → Deploy a custom template, or `az deployment group create`). It creates one Sentinel incident per monitored user per week of activity, titled `AFRL Anthropic Access Detection — Monitored Personnel` — the **Detection Investigations** tab matches on that exact title.\n\n### Step 3: Validate data sources below"
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -1036,7 +948,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        Status      = column_ifexists('Status', 'Active'),\n        DateAdded   = column_ifexists('DateAdded', ''),\n        DateRemoved = column_ifexists('DateRemoved', ''),\n        Notes       = column_ifexists('Notes', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize TotalEntries = count(), Active = countif(Status =~ \"Active\"),\n    Removed = countif(Status =~ \"Removed\"), LatestUpdate = max(LastUpdated)",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = TimeGenerated\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize TotalEntries = count(), LatestUpdate = max(LastUpdated)",
         "size": 0,
         "title": "Step 3a: DoD-Anthropic-Monitoring Watchlist Status",
         "queryType": 0,
