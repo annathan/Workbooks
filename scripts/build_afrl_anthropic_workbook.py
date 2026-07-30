@@ -327,40 +327,19 @@ items.append(kql_item(
 ))
 
 items.append(md_item(
-    "exec-narrative-heading",
-    "### Monthly Report Narrative (live draft)\n"
-    "> Auto-generated from current watchlist and detection counts. Review before sending — this "
-    "is a starting draft, not a substitute for analyst judgement.",
-    "executive",
-))
-
-items.append(kql_item(
     "exec-narrative",
-    "Draft Compliance Narrative",
-    PROJECT_USERS_ACTIVE +
-    "let ThisMonth = startofmonth(now());\n"
-    "let MonthName = format_datetime(now(), 'MMMM yyyy');\n"
-    "let PersonnelCount = toscalar(ProjectUsers | summarize coalesce(dcount(UserUPN), 0));\n"
-    "let AnthropicHits =\n"
-    "    " + NETWORK_UNION.replace("\n", "\n    ").rstrip() + "\n"
-    "    | where Timestamp >= ThisMonth\n"
-    f"    | where RemoteUrl has_any (\n        {ANTHROPIC_DOMAINS})\n"
-    "    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n"
-    "    | where isnotempty(UserUPN)\n"
-    "    | join kind=inner ProjectUsers on UserUPN;\n"
-    "let Detections = toscalar(AnthropicHits | summarize coalesce(count(), 0));\n"
-    "let StatusText = iff(Detections == 0,\n"
-    "    \"No access to Anthropic services was detected\",\n"
-    "    strcat(tostring(Detections), \" access event(s) to Anthropic services were detected and are under review\"));\n"
-    "print ['Monthly Compliance Report'] = strcat(\n"
-    "    \"DTS continuously monitors \", tostring(PersonnelCount),\n"
-    "    \" personnel associated with AFRL-funded projects for access to Anthropic-hosted services \",\n"
-    "    \"using Microsoft Sentinel and Microsoft Defender telemetry. \", StatusText,\n"
-    "    \" during \", MonthName, \". Monitoring coverage was reviewed and remains current as of \",\n"
-    "    format_datetime(now(), 'yyyy-MM-dd'),\n"
-    "    \". The primary residual risk remains potential use of unmanaged personal devices or \",\n"
-    "    \"third-party platforms outside University visibility.\")",
-    "table", tab="executive",
+    "### Monthly Report Narrative (template)\n"
+    "> Copy-paste starting point — fill in the bracketed values from the tiles above "
+    "(Monitored Personnel, Anthropic Detections, Compliance Status) and today's date. Not "
+    "auto-generated, so it can't render oddly or drift from what KQL happens to compute; it's a "
+    "template, not a substitute for analyst review.\n\n"
+    "> DTS continuously monitors **[Monitored Personnel]** personnel associated with AFRL-funded "
+    "projects for access to Anthropic-hosted services using Microsoft Sentinel and Microsoft "
+    "Defender telemetry. **[No access to Anthropic services was detected / N access event(s) were "
+    "detected and are under review]** during **[Month Year]**. Monitoring coverage was reviewed "
+    "and remains current as of **[today's date]**. The primary residual risk remains potential use "
+    "of unmanaged personal devices or third-party platforms outside University visibility.",
+    "executive",
 ))
 
 items.append(md_item(

@@ -266,25 +266,7 @@
     {
       "type": 1,
       "content": {
-        "json": "### Monthly Report Narrative (live draft)\n> Auto-generated from current watchlist and detection counts. Review before sending — this is a starting draft, not a substitute for analyst judgement."
-      },
-      "conditionalVisibility": {
-        "parameterName": "selectedTab",
-        "comparison": "isEqualTo",
-        "value": "executive"
-      },
-      "name": "exec-narrative-heading"
-    },
-    {
-      "type": 3,
-      "content": {
-        "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nlet ThisMonth = startofmonth(now());\nlet MonthName = format_datetime(now(), 'MMMM yyyy');\nlet PersonnelCount = toscalar(ProjectUsers | summarize coalesce(dcount(UserUPN), 0));\nlet AnthropicHits =\n    union isfuzzy=true\n        DeviceNetworkEvents,\n        (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n                   DeviceName:string) [])\n    | where Timestamp >= ThisMonth\n    | where RemoteUrl has_any (\n        \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n    | where isnotempty(UserUPN)\n    | join kind=inner ProjectUsers on UserUPN;\nlet Detections = toscalar(AnthropicHits | summarize coalesce(count(), 0));\nlet StatusText = iff(Detections == 0,\n    \"No access to Anthropic services was detected\",\n    strcat(tostring(Detections), \" access event(s) to Anthropic services were detected and are under review\"));\nprint ['Monthly Compliance Report'] = strcat(\n    \"DTS continuously monitors \", tostring(PersonnelCount),\n    \" personnel associated with AFRL-funded projects for access to Anthropic-hosted services \",\n    \"using Microsoft Sentinel and Microsoft Defender telemetry. \", StatusText,\n    \" during \", MonthName, \". Monitoring coverage was reviewed and remains current as of \",\n    format_datetime(now(), 'yyyy-MM-dd'),\n    \". The primary residual risk remains potential use of unmanaged personal devices or \",\n    \"third-party platforms outside University visibility.\")",
-        "size": 0,
-        "title": "Draft Compliance Narrative",
-        "queryType": 0,
-        "resourceType": "microsoft.operationalinsights/workspaces",
-        "visualization": "table"
+        "json": "### Monthly Report Narrative (template)\n> Copy-paste starting point — fill in the bracketed values from the tiles above (Monitored Personnel, Anthropic Detections, Compliance Status) and today's date. Not auto-generated, so it can't render oddly or drift from what KQL happens to compute; it's a template, not a substitute for analyst review.\n\n> DTS continuously monitors **[Monitored Personnel]** personnel associated with AFRL-funded projects for access to Anthropic-hosted services using Microsoft Sentinel and Microsoft Defender telemetry. **[No access to Anthropic services was detected / N access event(s) were detected and are under review]** during **[Month Year]**. Monitoring coverage was reviewed and remains current as of **[today's date]**. The primary residual risk remains potential use of unmanaged personal devices or third-party platforms outside University visibility."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
