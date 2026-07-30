@@ -66,7 +66,7 @@ def build_register(cmdb_names: pd.DataFrame, armis_names: pd.DataFrame, hecvat_r
 
     canonical_names = list(canonical.keys())
 
-    hecvat_best = {}  # canonical name -> (date, source_file, ticket_number)
+    hecvat_best = {}  # canonical name -> (date, source_file, ticket_number, vendor_source)
     unmatched_hecvats = []
     parse_issues = []
 
@@ -86,15 +86,15 @@ def build_register(cmdb_names: pd.DataFrame, armis_names: pd.DataFrame, hecvat_r
             continue
         existing = hecvat_best.get(result.match)
         if rec.assessment_date and (existing is None or existing[0] is None or rec.assessment_date > existing[0]):
-            hecvat_best[result.match] = (rec.assessment_date, rec.source_file, rec.ticket_number)
+            hecvat_best[result.match] = (rec.assessment_date, rec.source_file, rec.ticket_number, rec.vendor_source)
         elif existing is None:
-            hecvat_best[result.match] = (rec.assessment_date, rec.source_file, rec.ticket_number)
+            hecvat_best[result.match] = (rec.assessment_date, rec.source_file, rec.ticket_number, rec.vendor_source)
 
     today = datetime.now()
     rows = []
     for name, info in sorted(canonical.items()):
         hecvat = hecvat_best.get(name)
-        last_date, source_file, ticket_number = hecvat if hecvat else (None, None, None)
+        last_date, source_file, ticket_number, vendor_source = hecvat if hecvat else (None, None, None, None)
         years_since = (today - last_date).days / 365.25 if last_date else None
 
         if info["in_armis"] and not hecvat:
@@ -118,6 +118,7 @@ def build_register(cmdb_names: pd.DataFrame, armis_names: pd.DataFrame, hecvat_r
                 "Years Since Last HECVAT": round(years_since, 1) if years_since is not None else None,
                 "HECVAT Ticket": ticket_number,
                 "Status": status,
+                "Vendor Match Confidence": {"cell": "high", "filename": "LOW — verify", None: None}[vendor_source],
             }
         )
 
