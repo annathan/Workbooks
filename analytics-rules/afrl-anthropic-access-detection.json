@@ -1,0 +1,97 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "Workspace": {
+      "type": "string",
+      "defaultValue": "uon-la-sentinel-staff",
+      "metadata": {
+        "description": "Name of the Log Analytics / Sentinel workspace to deploy the rule into."
+      }
+    },
+    "AnalyticRuleId1": {
+      "type": "string",
+      "defaultValue": "d6312b5e-3528-4ae5-93e2-2785994746a3",
+      "metadata": {
+        "description": "GUID for this analytics rule. Keep the default unless deploying a second copy alongside an existing one."
+      }
+    }
+  },
+  "resources": [
+    {
+      "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('Workspace'), 'Microsoft.SecurityInsights'),'/alertRules/', parameters('AnalyticRuleId1'))]",
+      "name": "[concat(parameters('Workspace'),'/Microsoft.SecurityInsights/',parameters('AnalyticRuleId1'))]",
+      "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+      "kind": "Scheduled",
+      "apiVersion": "2023-02-01-preview",
+      "properties": {
+        "displayName": "AFRL Anthropic Access Detection — Monitored Personnel",
+        "description": "Compliance control for AFRL-funded project monitoring. Fires when a user on the DoD-Anthropic-Monitoring watchlist is observed accessing an Anthropic-hosted domain (claude.ai, anthropic.com and subdomains) per Microsoft Defender DeviceNetworkEvents telemetry. See AFRL-Anthropic-Compliance.json (companion workbook) and watchlists/DoD-Anthropic-Monitoring.csv for setup.",
+        "severity": "Medium",
+        "enabled": true,
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string, DeviceName:string) [])\n| where Timestamp > ago(2h)\n| where RemoteUrl has_any (\n    \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| project Timestamp, UserUPN, Name, Project, DeviceName, RemoteUrl",
+        "queryFrequency": "PT1H",
+        "queryPeriod": "PT2H",
+        "triggerOperator": "GreaterThan",
+        "triggerThreshold": 0,
+        "suppressionDuration": "PT1H",
+        "suppressionEnabled": false,
+        "tactics": [
+          "Exfiltration",
+          "Collection"
+        ],
+        "techniques": [
+          "T1567"
+        ],
+        "alertRuleTemplateName": null,
+        "incidentConfiguration": {
+          "createIncident": true,
+          "groupingConfiguration": {
+            "enabled": true,
+            "reopenClosedIncident": false,
+            "lookbackDuration": "P7D",
+            "matchingMethod": "AllEntities",
+            "groupByEntities": [
+              "Account"
+            ],
+            "groupByAlertDetails": [],
+            "groupByCustomDetails": []
+          }
+        },
+        "eventGroupingSettings": {
+          "aggregationKind": "AlertPerResult"
+        },
+        "alertDetailsOverride": {
+          "alertDisplayNameFormat": "AFRL Anthropic Access Detection — Monitored Personnel",
+          "alertDescriptionFormat": "Monitored user {{UserUPN}} ({{Name}}, project {{Project}}) was observed accessing an Anthropic-hosted domain ({{RemoteUrl}}) from device {{DeviceName}}. This is a compliance detection under AFRL-funded project monitoring — see the AFRL-Anthropic-Compliance workbook for full context and disposition guidance."
+        },
+        "customDetails": {
+          "Project": "Project",
+          "MonitoredName": "Name",
+          "Device": "DeviceName",
+          "AccessedUrl": "RemoteUrl"
+        },
+        "entityMappings": [
+          {
+            "entityType": "Account",
+            "fieldMappings": [
+              {
+                "identifier": "FullName",
+                "columnName": "UserUPN"
+              }
+            ]
+          },
+          {
+            "entityType": "Host",
+            "fieldMappings": [
+              {
+                "identifier": "FullName",
+                "columnName": "DeviceName"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
