@@ -36,11 +36,11 @@ audit-ready monthly compliance record. Three parts:
   want the Monitored User Coverage tab to track *when* staff were added or
   removed rather than just who's currently monitored — the shipped workbook
   doesn't require them.
-- **`analytics-rules/afrl-anthropic-access-detection.json`** — an ARM
-  template for the Scheduled analytics rule that creates a Sentinel incident
-  when a monitored user is observed accessing an Anthropic domain. Deploy it
-  to the workspace (Azure portal → Deploy a custom template, or
-  `az deployment group create`).
+- **`analytics-rules/afrl-anthropic-access-detection.json`** — reference/
+  backup ARM template for the Scheduled analytics rule (not required if you
+  already have one deployed, e.g. an "AFRL Anthropic Compliance" rule
+  created via the portal). Keeps the entity mappings, grouping and detection
+  logic on record in case you ever need to redeploy or compare.
 - **`AFRL-Anthropic-Compliance.json`** — the standalone workbook (built by
   `scripts/build_afrl_anthropic_workbook.py`) with tabs for the Monthly
   Compliance Dashboard, Anthropic Access, AI Usage Context (what was
@@ -49,6 +49,12 @@ audit-ready monthly compliance record. Three parts:
   way as the other workbooks above — copy the code into a new Azure Monitor
   workbook. Run the **Setup & Validation** tab first to confirm the
   watchlist and required tables are populated.
+  **Detection Investigations and the Compliance Status/Investigations
+  tiles filter `SecurityIncident` on an exact `Title` match** (currently
+  `"AFRL Anthropic Compliance"`, set as `RULE_TITLE` in the generator
+  script). If your analytics rule's display name or `alertDisplayNameFormat`
+  differs, update `RULE_TITLE` and regenerate — otherwise those panels will
+  silently show zero regardless of actual activity.
 
 To change the workbook, edit `scripts/build_afrl_anthropic_workbook.py` and
 re-run it — don't hand-edit `AFRL-Anthropic-Compliance.json` directly, since

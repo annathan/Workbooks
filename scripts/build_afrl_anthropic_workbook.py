@@ -17,7 +17,7 @@ WORKSPACE_RESOURCE_ID = (
     "uon-la-sentinel-staff"
 )
 
-RULE_TITLE = "AFRL Anthropic Access Detection — Monitored Personnel"
+RULE_TITLE = "AFRL Anthropic Compliance"
 
 ANTHROPIC_DOMAINS = (
     '"claude.ai",\n'
@@ -768,11 +768,16 @@ items.append(md_item(
     "**Monitored User Coverage** tab to track *when* staff were added/removed, not just who's "
     "currently monitored. The workbook shipped here doesn't require them — this deployment's "
     "watchlist doesn't have them.\n\n"
-    "### Step 2: Deploy the analytics rule\n"
-    "Deploy `analytics-rules/afrl-anthropic-access-detection.json` to the workspace (Azure "
-    "portal → Deploy a custom template, or `az deployment group create`). It creates one Sentinel "
-    "incident per monitored user per week of activity, titled "
-    f"`{RULE_TITLE}` — the **Detection Investigations** tab matches on that exact title.\n\n"
+    "### Step 2: Analytics rule\n"
+    "The Detection Investigations tab and the Compliance Status/Investigations tiles filter "
+    f"`SecurityIncident` on `Title == \"{RULE_TITLE}\"`. If your Sentinel analytics rule's "
+    "display name (or `alertDisplayNameFormat` override, if it has one) is anything other than "
+    f"exactly `{RULE_TITLE}`, update `RULE_TITLE` in "
+    "`scripts/build_afrl_anthropic_workbook.py` and regenerate — otherwise those panels will "
+    "silently show zero regardless of actual activity. `analytics-rules/"
+    "afrl-anthropic-access-detection.json` is kept in the repo as a reference/backup ARM "
+    "template (same title, same entity mappings) — not required if you already have a rule "
+    "deployed.\n\n"
     "### Step 3: Validate data sources below",
     "setup",
 ))

@@ -209,7 +209,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Access Detection — Monitored Personnel\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where Status !in (\"Closed\", \"Resolved\")\n| summarize ['Open Investigations'] = dcount(IncidentNumber)",
+        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Compliance\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where Status !in (\"Closed\", \"Resolved\")\n| summarize ['Open Investigations'] = dcount(IncidentNumber)",
         "size": 4,
         "title": "Open Investigations",
         "queryType": 0,
@@ -238,7 +238,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nlet ThisMonth = startofmonth(now());\nlet AnthropicHits =\n    union isfuzzy=true\n        DeviceNetworkEvents,\n        (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n                   DeviceName:string) [])\n    | where Timestamp >= ThisMonth\n    | where RemoteUrl has_any (\n        \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n    | where isnotempty(UserUPN)\n    | join kind=inner ProjectUsers on UserUPN;\nlet Detections = toscalar(AnthropicHits | summarize coalesce(count(), 0));\nlet OpenInvestigations = toscalar(\n    union isfuzzy=true SecurityIncident\n    | where Title == \"AFRL Anthropic Access Detection — Monitored Personnel\"\n    | summarize arg_max(LastModifiedTime, *) by IncidentNumber\n    | where Status !in (\"Closed\", \"Resolved\")\n    | summarize coalesce(dcount(IncidentNumber), 0));\nprint ['Compliance Status'] = case(\n    Detections == 0, \"🟢 Green\",\n    OpenInvestigations > 0, \"🟠 Amber — Investigating\",\n    \"🔴 Red — Unresolved Detection\")",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nlet ThisMonth = startofmonth(now());\nlet AnthropicHits =\n    union isfuzzy=true\n        DeviceNetworkEvents,\n        (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n                   DeviceName:string) [])\n    | where Timestamp >= ThisMonth\n    | where RemoteUrl has_any (\n        \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n    | where isnotempty(UserUPN)\n    | join kind=inner ProjectUsers on UserUPN;\nlet Detections = toscalar(AnthropicHits | summarize coalesce(count(), 0));\nlet OpenInvestigations = toscalar(\n    union isfuzzy=true SecurityIncident\n    | where Title == \"AFRL Anthropic Compliance\"\n    | summarize arg_max(LastModifiedTime, *) by IncidentNumber\n    | where Status !in (\"Closed\", \"Resolved\")\n    | summarize coalesce(dcount(IncidentNumber), 0));\nprint ['Compliance Status'] = case(\n    Detections == 0, \"🟢 Green\",\n    OpenInvestigations > 0, \"🟠 Amber — Investigating\",\n    \"🔴 Red — Unresolved Detection\")",
         "size": 4,
         "title": "Compliance Status",
         "queryType": 0,
@@ -727,7 +727,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## Detection Investigations\n> **Outcome this answers:** what happened when activity was detected? Sourced from `SecurityIncident` for incidents raised by the **AFRL Anthropic Access Detection — Monitored Personnel** analytics rule. To record a reviewed-and-accepted detection as a compliance exception, add the incident label `ComplianceException` when closing it in Sentinel."
+        "json": "## Detection Investigations\n> **Outcome this answers:** what happened when activity was detected? Sourced from `SecurityIncident` for incidents raised by the **AFRL Anthropic Compliance** analytics rule. To record a reviewed-and-accepted detection as a compliance exception, add the incident label `ComplianceException` when closing it in Sentinel."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -740,7 +740,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Access Detection — Monitored Personnel\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where CreatedTime {TimeRange}\n| summarize ['Investigations Opened'] = dcount(IncidentNumber)",
+        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Compliance\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where CreatedTime {TimeRange}\n| summarize ['Investigations Opened'] = dcount(IncidentNumber)",
         "size": 4,
         "title": "Investigations Opened (Selected Period)",
         "queryType": 0,
@@ -769,7 +769,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Access Detection — Monitored Personnel\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where Status in (\"Closed\", \"Resolved\") and ClosedTime {TimeRange}\n| summarize ['Investigations Closed'] = dcount(IncidentNumber)",
+        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Compliance\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where Status in (\"Closed\", \"Resolved\") and ClosedTime {TimeRange}\n| summarize ['Investigations Closed'] = dcount(IncidentNumber)",
         "size": 4,
         "title": "Investigations Closed (Selected Period)",
         "queryType": 0,
@@ -798,7 +798,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Access Detection — Monitored Personnel\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where Status !in (\"Closed\", \"Resolved\")\n| summarize ['Currently Open'] = dcount(IncidentNumber)",
+        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Compliance\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where Status !in (\"Closed\", \"Resolved\")\n| summarize ['Currently Open'] = dcount(IncidentNumber)",
         "size": 4,
         "title": "Currently Open",
         "queryType": 0,
@@ -827,7 +827,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Access Detection — Monitored Personnel\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| mv-expand Labels\n| where tostring(Labels.labelName) =~ \"ComplianceException\"\n| summarize ['Compliance Exceptions'] = dcount(IncidentNumber)",
+        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Compliance\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| mv-expand Labels\n| where tostring(Labels.labelName) =~ \"ComplianceException\"\n| summarize ['Compliance Exceptions'] = dcount(IncidentNumber)",
         "size": 4,
         "title": "Compliance Exceptions",
         "queryType": 0,
@@ -856,7 +856,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Access Detection — Monitored Personnel\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where CreatedTime {TimeRange}\n| project IncidentNumber, Title, Severity, Status, Classification,\n    Owner = tostring(Owner.assignedTo), CreatedTime, ClosedTime\n| sort by CreatedTime desc",
+        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Compliance\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where CreatedTime {TimeRange}\n| project IncidentNumber, Title, Severity, Status, Classification,\n    Owner = tostring(Owner.assignedTo), CreatedTime, ClosedTime\n| sort by CreatedTime desc",
         "size": 0,
         "title": "Investigation Detail",
         "queryType": 0,
@@ -1004,7 +1004,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## Setup & Validation\n### Step 1: Create the watchlist\nSentinel → Watchlists → **+ New** → name it exactly `DoD-Anthropic-Monitoring`. Minimum columns: `UserUPN, Name, Project` (see `watchlists/DoD-Anthropic-Monitoring.csv`). SearchKey can be set to whatever you like — the workbook always resolves the real `UserUPN` column directly and only falls back to SearchKey if that column is missing.\n\n> Optional: add `Status`, `DateAdded`, `DateRemoved` columns if you want the **Monitored User Coverage** tab to track *when* staff were added/removed, not just who's currently monitored. The workbook shipped here doesn't require them — this deployment's watchlist doesn't have them.\n\n### Step 2: Deploy the analytics rule\nDeploy `analytics-rules/afrl-anthropic-access-detection.json` to the workspace (Azure portal → Deploy a custom template, or `az deployment group create`). It creates one Sentinel incident per monitored user per week of activity, titled `AFRL Anthropic Access Detection — Monitored Personnel` — the **Detection Investigations** tab matches on that exact title.\n\n### Step 3: Validate data sources below"
+        "json": "## Setup & Validation\n### Step 1: Create the watchlist\nSentinel → Watchlists → **+ New** → name it exactly `DoD-Anthropic-Monitoring`. Minimum columns: `UserUPN, Name, Project` (see `watchlists/DoD-Anthropic-Monitoring.csv`). SearchKey can be set to whatever you like — the workbook always resolves the real `UserUPN` column directly and only falls back to SearchKey if that column is missing.\n\n> Optional: add `Status`, `DateAdded`, `DateRemoved` columns if you want the **Monitored User Coverage** tab to track *when* staff were added/removed, not just who's currently monitored. The workbook shipped here doesn't require them — this deployment's watchlist doesn't have them.\n\n### Step 2: Analytics rule\nThe Detection Investigations tab and the Compliance Status/Investigations tiles filter `SecurityIncident` on `Title == \"AFRL Anthropic Compliance\"`. If your Sentinel analytics rule's display name (or `alertDisplayNameFormat` override, if it has one) is anything other than exactly `AFRL Anthropic Compliance`, update `RULE_TITLE` in `scripts/build_afrl_anthropic_workbook.py` and regenerate — otherwise those panels will silently show zero regardless of actual activity. `analytics-rules/afrl-anthropic-access-detection.json` is kept in the repo as a reference/backup ARM template (same title, same entity mappings) — not required if you already have a rule deployed.\n\n### Step 3: Validate data sources below"
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -1055,7 +1055,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Access Detection — Monitored Personnel\"\n| summarize TotalIncidents = dcount(IncidentNumber), LatestRecord = max(TimeGenerated)",
+        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Compliance\"\n| summarize TotalIncidents = dcount(IncidentNumber), LatestRecord = max(TimeGenerated)",
         "size": 0,
         "title": "Step 3c: SecurityIncident — Rule Match Check",
         "queryType": 0,

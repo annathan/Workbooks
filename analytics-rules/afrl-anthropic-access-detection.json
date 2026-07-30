@@ -25,8 +25,8 @@
       "kind": "Scheduled",
       "apiVersion": "2023-02-01-preview",
       "properties": {
-        "displayName": "AFRL Anthropic Access Detection — Monitored Personnel",
-        "description": "Compliance control for AFRL-funded project monitoring. Fires when a user on the DoD-Anthropic-Monitoring watchlist is observed accessing an Anthropic-hosted domain (claude.ai, anthropic.com and subdomains) per Microsoft Defender DeviceNetworkEvents telemetry. See AFRL-Anthropic-Compliance.json (companion workbook) and watchlists/DoD-Anthropic-Monitoring.csv for setup.",
+        "displayName": "AFRL Anthropic Compliance",
+        "description": "Reference/backup template — not required if a rule with this name is already deployed. Compliance control for AFRL-funded project monitoring. Fires when a user on the DoD-Anthropic-Monitoring watchlist is observed accessing an Anthropic-hosted domain (claude.ai, anthropic.com and subdomains) per Microsoft Defender DeviceNetworkEvents telemetry. See AFRL-Anthropic-Compliance.json (companion workbook) and watchlists/DoD-Anthropic-Monitoring.csv for setup. The companion workbook matches SecurityIncident on Title == \"AFRL Anthropic Compliance\" — keep displayName/alertDisplayNameFormat in sync with RULE_TITLE in scripts/build_afrl_anthropic_workbook.py if either changes.",
         "severity": "Medium",
         "enabled": true,
         "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string, DeviceName:string) [])\n| where Timestamp > ago(2h)\n| where RemoteUrl has_any (\n    \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| project Timestamp, UserUPN, Name, Project, DeviceName, RemoteUrl",
@@ -62,7 +62,7 @@
           "aggregationKind": "AlertPerResult"
         },
         "alertDetailsOverride": {
-          "alertDisplayNameFormat": "AFRL Anthropic Access Detection — Monitored Personnel",
+          "alertDisplayNameFormat": "AFRL Anthropic Compliance",
           "alertDescriptionFormat": "Monitored user {{UserUPN}} ({{Name}}, project {{Project}}) was observed accessing an Anthropic-hosted domain ({{RemoteUrl}}) from device {{DeviceName}}. This is a compliance detection under AFRL-funded project monitoring — see the AFRL-Anthropic-Compliance workbook for full context and disposition guidance."
         },
         "customDetails": {
