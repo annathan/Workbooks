@@ -97,6 +97,7 @@ DEVICEINFO_UNION = (
 SIGNINLOGS_UNION = (
     "union isfuzzy=true\n"
     "    SigninLogs,\n"
+    "    AADNonInteractiveUserSignInLogs,\n"
     "    (datatable(TimeGenerated:datetime, UserPrincipalName:string, DeviceDetail:dynamic,\n"
     "               AppDisplayName:string) [])\n"
 )
@@ -736,10 +737,15 @@ items.append(kql_item(
     "| extend\n"
     "    DeviceNameRaw = tostring(DeviceDetail.displayName),\n"
     "    DeviceIdRaw   = tostring(DeviceDetail.deviceId),\n"
+    "    DeviceOS      = tostring(DeviceDetail.operatingSystem),\n"
+    "    DeviceBrowser = tostring(DeviceDetail.browser),\n"
     "    TrustType     = tostring(DeviceDetail.trustType)\n"
     "| extend Device = case(\n"
     "    isnotempty(DeviceNameRaw), DeviceNameRaw,\n"
     "    isnotempty(DeviceIdRaw), DeviceIdRaw,\n"
+    "    isnotempty(DeviceOS) or isnotempty(DeviceBrowser),\n"
+    "        strcat(iff(isempty(DeviceOS), \"Unknown OS\", DeviceOS), \" · \",\n"
+    "               iff(isempty(DeviceBrowser), \"unknown browser\", DeviceBrowser)),\n"
     "    \"(no device info returned)\")\n"
     "| extend Trust = iff(isempty(TrustType), \"Unregistered / Unknown\", TrustType)\n"
     "| summarize\n"
@@ -852,31 +858,51 @@ items.append(kql_item(
     "setup-devicedetail-sample",
     "Step 3f: Raw DeviceDetail Sample (diagnose Unmanaged Device Risk readings)",
     PROJECT_USERS_ACTIVE +
-    "SigninLogs\n"
+    "union isfuzzy=true\n"
+    "    (SigninLogs | extend SourceTable = \"SigninLogs (interactive)\"),\n"
+    "    (AADNonInteractiveUserSignInLogs | extend SourceTable = \"AADNonInteractiveUserSignInLogs\"),\n"
+    "    (datatable(TimeGenerated:datetime, UserPrincipalName:string, DeviceDetail:dynamic,\n"
+    "               AppDisplayName:string, SourceTable:string) [])\n"
     "| where TimeGenerated > ago(14d)\n"
     "| extend UserUPN = tolower(UserPrincipalName)\n"
     "| join kind=inner ProjectUsers on UserUPN\n"
-    "| project TimeGenerated, UserUPN, AppDisplayName, ClientAppUsed, IsInteractive, DeviceDetail\n"
+    "| project TimeGenerated, UserUPN, SourceTable, AppDisplayName, DeviceDetail\n"
     "| sort by TimeGenerated desc\n"
-    "| take 25",
+    "| take 30",
     "table", tab="setup",
+))
+
+items.append(kql_item(
+    "setup-noninteractive-status",
+    "Step 3g: AADNonInteractiveUserSignInLogs Status (silent/WAM sign-ins — often where managed-device activity actually lands)",
+    "union isfuzzy=true\n"
+    "    AADNonInteractiveUserSignInLogs,\n"
+    "    (datatable(TimeGenerated:datetime) [])\n"
+    "| where TimeGenerated > ago(3d)\n"
+    "| summarize RowCount = count(), LatestRecord = max(TimeGenerated)",
+    "table", tab="setup", custom_width=50,
 ))
 
 items.append(md_item(
     "setup-devicedetail-note",
-    "> **Reading Step 3f:** expand a `DeviceDetail` cell. If it's `{}` or missing `trustType`/"
-    "`isManaged`/`isCompliant` entirely across every row — even for a user you know signs in from "
-    "an MDE-managed machine — that's a genuine tenant condition, not a workbook bug: those fields "
-    "only populate when the device presents an Entra ID token (Hybrid Azure AD join, Azure AD "
-    "join, or Azure AD registration) at sign-in time. **MDE onboarding and Entra device "
-    "registration are independent** — a device can have the Defender sensor installed without "
-    "ever being registered as a trusted device in Entra ID (common when devices are on-prem "
-    "domain-joined and onboarded to MDE via GPO/SCCM rather than through Entra hybrid join). If "
-    "that's what Step 3f shows, the Unmanaged Device Risk tab reading 0% managed is correct, and "
-    "the real finding is the registration gap itself — worth reporting as its own residual risk, "
-    "separate from the device-level BYOD risk. Compare `ClientAppUsed`/`IsInteractive` too: "
-    "browser or legacy-auth sign-ins often carry no device claims even from a fully managed "
-    "machine, which would explain a mix of populated and empty `DeviceDetail` for the same user.",
+    "> **Reading Step 3f/3g:** `SigninLogs` only captures *interactive* sign-ins. A managed "
+    "Windows device authenticating via Windows Hello/WAM does a lot of its Entra traffic as "
+    "silent, non-interactive token refreshes — those land in **`AADNonInteractiveUserSignInLogs`** "
+    "instead, a separate table the Unmanaged Device Risk tab now also queries. If Step 3g shows "
+    "`RowCount = 0`, that table isn't being ingested in this workspace at all (it needs its own "
+    "Entra ID diagnostic setting), and the tab's picture will stay skewed toward "
+    "browser/interactive sign-ins — worth enabling if you want managed-device activity to show up "
+    "here.\n>\n"
+    "> If, even after adding that table, `DeviceDetail` is still missing `trustType`/`isManaged`/"
+    "`isCompliant` entirely for a user you *know* signs in from an MDE-managed machine — that's a "
+    "genuine tenant condition, not a workbook bug: those fields only populate when the device "
+    "presents an Entra ID token (Hybrid Azure AD join, Azure AD join, or Azure AD registration) at "
+    "sign-in time. **MDE onboarding and Entra device registration are independent** — a device can "
+    "have the Defender sensor installed without ever being registered as a trusted device in Entra "
+    "ID (common when devices are on-prem domain-joined and onboarded to MDE via GPO/SCCM rather "
+    "than through Entra hybrid join). If that's the case, the tab's 0%-managed reading is correct, "
+    "and the registration gap itself is the residual-risk finding — worth reporting on its own, "
+    "separate from device-level BYOD risk.",
     "setup",
 ))
 
