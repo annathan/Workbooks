@@ -915,7 +915,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## Unmanaged Device Risk\n> **Outcome this answers:** activity from unmanaged devices cannot be fully monitored and remains a residual risk — this tab quantifies how much of monitored activity that is. `SigninLogs` requires Entra ID P1/P2; if absent, the Entra panels below will be empty and the MDE-based tile is the fallback signal."
+        "json": "## Unmanaged Device Risk\n> **Outcome this answers:** activity from unmanaged devices cannot be fully monitored and remains a residual risk — this tab quantifies how much of monitored activity that is. `SigninLogs` requires Entra ID P1/P2; if absent, the Entra panels below will be empty and the MDE-based tile is the fallback signal.\n>\n> **Why device *name* and `TrustType`, not `isManaged`/`isCompliant`:** those two fields only populate when a device-based Conditional Access policy is actively enforcing them — without that, every sign-in reads `false`/empty regardless of the device's real status, which silently understates risk rather than overstates it. `TrustType` (Azure AD joined / Hybrid Azure AD joined / registered / blank) is populated far more reliably and is what the table below and the second tile use instead."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -951,18 +951,83 @@
         "value": "risk"
       },
       "name": "risk-tile-unmanaged-pct",
-      "customWidth": "33"
+      "customWidth": "50"
     },
     {
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nunion isfuzzy=true\n    SigninLogs,\n    (datatable(TimeGenerated:datetime, UserPrincipalName:string, DeviceDetail:dynamic,\n               AppDisplayName:string) [])\n| where TimeGenerated {TimeRange}\n| extend UserUPN = tolower(UserPrincipalName)\n| join kind=inner ProjectUsers on UserUPN\n| extend\n    DeviceIsManaged   = tostring(DeviceDetail.isManaged),\n    DeviceIsCompliant = tostring(DeviceDetail.isCompliant),\n    TrustType         = tostring(DeviceDetail.trustType)\n| summarize\n    SignIns           = count(),\n    ManagedSignIns    = countif(DeviceIsManaged == \"true\"),\n    CompliantSignIns  = countif(DeviceIsCompliant == \"true\"),\n    LastSeen          = max(TimeGenerated)\n  by UserUPN, Name, Project\n| extend ['Unmanaged Sign-in %'] = round(100.0 * (SignIns - ManagedSignIns) / iff(SignIns == 0, 1, SignIns), 1)\n| sort by ['Unmanaged Sign-in %'] desc",
-        "size": 0,
-        "title": "Entra Sign-ins — Device Compliance (Monitored Users)",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nunion isfuzzy=true\n    SigninLogs,\n    (datatable(TimeGenerated:datetime, UserPrincipalName:string, DeviceDetail:dynamic,\n               AppDisplayName:string) [])\n| where TimeGenerated {TimeRange}\n| extend UserUPN = tolower(UserPrincipalName)\n| join kind=inner ProjectUsers on UserUPN\n| extend TrustType = tostring(DeviceDetail.trustType)\n| summarize\n    Total   = count(),\n    Managed = countif(TrustType in (\"Azure AD joined\", \"Hybrid Azure AD joined\", \"ServerAD joined\"))\n| extend ['Unregistered/Unknown Sign-in %'] = round(100.0 * (Total - Managed) / iff(Total == 0, 1, Total), 1)\n| project ['Unregistered/Unknown Sign-in %']",
+        "size": 4,
+        "title": "Unregistered/Unknown Device Sign-in % (Entra-based)",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "visualization": "table"
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Unregistered/Unknown Sign-in %",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "risk"
+      },
+      "name": "risk-tile-unregistered-pct",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nunion isfuzzy=true\n    SigninLogs,\n    (datatable(TimeGenerated:datetime, UserPrincipalName:string, DeviceDetail:dynamic,\n               AppDisplayName:string) [])\n| where TimeGenerated {TimeRange}\n| extend UserUPN = tolower(UserPrincipalName)\n| join kind=inner ProjectUsers on UserUPN\n| extend\n    DeviceNameRaw = tostring(DeviceDetail.displayName),\n    DeviceIdRaw   = tostring(DeviceDetail.deviceId),\n    TrustType     = tostring(DeviceDetail.trustType)\n| extend Device = case(\n    isnotempty(DeviceNameRaw), DeviceNameRaw,\n    isnotempty(DeviceIdRaw), DeviceIdRaw,\n    \"(no device info returned)\")\n| extend Trust = iff(isempty(TrustType), \"Unregistered / Unknown\", TrustType)\n| summarize\n    SignIns  = count(),\n    LastSeen = max(TimeGenerated)\n  by UserUPN, Name, Project, Device, Trust\n| sort by LastSeen desc",
+        "size": 0,
+        "title": "Entra Sign-ins by Device (Monitored Users)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Trust",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Azure AD joined",
+                    "representation": "green",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Hybrid Azure AD joined",
+                    "representation": "green",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Unregistered / Unknown",
+                    "representation": "redBright",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "orange",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",

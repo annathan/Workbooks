@@ -675,7 +675,13 @@ items.append(md_item(
     "> **Outcome this answers:** activity from unmanaged devices cannot be fully monitored and "
     "remains a residual risk — this tab quantifies how much of monitored activity that is. "
     "`SigninLogs` requires Entra ID P1/P2; if absent, the Entra panels below will be empty and "
-    "the MDE-based tile is the fallback signal.",
+    "the MDE-based tile is the fallback signal.\n>\n"
+    "> **Why device *name* and `TrustType`, not `isManaged`/`isCompliant`:** those two fields "
+    "only populate when a device-based Conditional Access policy is actively enforcing them — "
+    "without that, every sign-in reads `false`/empty regardless of the device's real status, "
+    "which silently understates risk rather than overstates it. `TrustType` (Azure AD joined / "
+    "Hybrid Azure AD joined / registered / blank) is populated far more reliably and is what the "
+    "table below and the second tile use instead.",
     "risk",
 ))
 
@@ -698,30 +704,65 @@ items.append(kql_item(
     "| extend ['Unmanaged Activity %'] = round(100.0 * (TotalEvents - ManagedEvents) / iff(TotalEvents == 0, 1, TotalEvents), 1)\n"
     "| project ['Unmanaged Activity %']",
     "tiles", size=4, tile_col="Unmanaged Activity %", tile_palette="redBright",
-    tab="risk", custom_width=33,
+    tab="risk", custom_width=50,
+))
+
+items.append(kql_item(
+    "risk-tile-unregistered-pct",
+    "Unregistered/Unknown Device Sign-in % (Entra-based)",
+    PROJECT_USERS_ACTIVE +
+    SIGNINLOGS_UNION +
+    "| where TimeGenerated {TimeRange}\n"
+    "| extend UserUPN = tolower(UserPrincipalName)\n"
+    "| join kind=inner ProjectUsers on UserUPN\n"
+    "| extend TrustType = tostring(DeviceDetail.trustType)\n"
+    "| summarize\n"
+    "    Total   = count(),\n"
+    "    Managed = countif(TrustType in (\"Azure AD joined\", \"Hybrid Azure AD joined\", \"ServerAD joined\"))\n"
+    "| extend ['Unregistered/Unknown Sign-in %'] = round(100.0 * (Total - Managed) / iff(Total == 0, 1, Total), 1)\n"
+    "| project ['Unregistered/Unknown Sign-in %']",
+    "tiles", size=4, tile_col="Unregistered/Unknown Sign-in %", tile_palette="redBright",
+    tab="risk", custom_width=50,
 ))
 
 items.append(kql_item(
     "risk-signin-table",
-    "Entra Sign-ins — Device Compliance (Monitored Users)",
+    "Entra Sign-ins by Device (Monitored Users)",
     PROJECT_USERS_ACTIVE +
     SIGNINLOGS_UNION +
     "| where TimeGenerated {TimeRange}\n"
     "| extend UserUPN = tolower(UserPrincipalName)\n"
     "| join kind=inner ProjectUsers on UserUPN\n"
     "| extend\n"
-    "    DeviceIsManaged   = tostring(DeviceDetail.isManaged),\n"
-    "    DeviceIsCompliant = tostring(DeviceDetail.isCompliant),\n"
-    "    TrustType         = tostring(DeviceDetail.trustType)\n"
+    "    DeviceNameRaw = tostring(DeviceDetail.displayName),\n"
+    "    DeviceIdRaw   = tostring(DeviceDetail.deviceId),\n"
+    "    TrustType     = tostring(DeviceDetail.trustType)\n"
+    "| extend Device = case(\n"
+    "    isnotempty(DeviceNameRaw), DeviceNameRaw,\n"
+    "    isnotempty(DeviceIdRaw), DeviceIdRaw,\n"
+    "    \"(no device info returned)\")\n"
+    "| extend Trust = iff(isempty(TrustType), \"Unregistered / Unknown\", TrustType)\n"
     "| summarize\n"
-    "    SignIns           = count(),\n"
-    "    ManagedSignIns    = countif(DeviceIsManaged == \"true\"),\n"
-    "    CompliantSignIns  = countif(DeviceIsCompliant == \"true\"),\n"
-    "    LastSeen          = max(TimeGenerated)\n"
-    "  by UserUPN, Name, Project\n"
-    "| extend ['Unmanaged Sign-in %'] = round(100.0 * (SignIns - ManagedSignIns) / iff(SignIns == 0, 1, SignIns), 1)\n"
-    "| sort by ['Unmanaged Sign-in %'] desc",
+    "    SignIns  = count(),\n"
+    "    LastSeen = max(TimeGenerated)\n"
+    "  by UserUPN, Name, Project, Device, Trust\n"
+    "| sort by LastSeen desc",
     "table", tab="risk",
+    grid_formatters=[
+        {
+            "columnMatch": "Trust",
+            "formatter": 18,
+            "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                    {"operator": "==", "thresholdValue": "Azure AD joined", "representation": "green", "text": "{0}"},
+                    {"operator": "==", "thresholdValue": "Hybrid Azure AD joined", "representation": "green", "text": "{0}"},
+                    {"operator": "==", "thresholdValue": "Unregistered / Unknown", "representation": "redBright", "text": "{0}"},
+                    {"operator": "Default", "representation": "orange", "text": "{0}"},
+                ],
+            },
+        }
+    ],
 ))
 
 items.append(md_item(
