@@ -97,7 +97,6 @@ DEVICEINFO_UNION = (
 SIGNINLOGS_UNION = (
     "union isfuzzy=true\n"
     "    SigninLogs,\n"
-    "    AADNonInteractiveUserSignInLogs,\n"
     "    (datatable(TimeGenerated:datetime, UserPrincipalName:string, DeviceDetail:dynamic,\n"
     "               AppDisplayName:string) [])\n"
 )
@@ -864,15 +863,11 @@ items.append(kql_item(
     "setup-devicedetail-sample",
     "Step 3f: Raw DeviceDetail Sample (diagnose Unmanaged Device Risk readings)",
     PROJECT_USERS_ACTIVE +
-    "union withsource=SourceTable isfuzzy=true\n"
-    "    SigninLogs,\n"
-    "    AADNonInteractiveUserSignInLogs,\n"
-    "    (datatable(TimeGenerated:datetime, UserPrincipalName:string, DeviceDetail:dynamic,\n"
-    "               AppDisplayName:string) [])\n"
+    SIGNINLOGS_UNION +
     "| where TimeGenerated > ago(14d)\n"
     "| extend UserUPN = tolower(UserPrincipalName)\n"
     "| join kind=inner ProjectUsers on UserUPN\n"
-    "| project TimeGenerated, UserUPN, SourceTable, AppDisplayName, DeviceDetail\n"
+    "| project TimeGenerated, UserUPN, AppDisplayName, DeviceDetail\n"
     "| sort by TimeGenerated desc\n"
     "| take 30",
     "table", tab="setup",
@@ -891,13 +886,12 @@ items.append(kql_item(
 
 items.append(md_item(
     "setup-devicedetail-note",
-    "> **Reading Step 3f/3g:** `SigninLogs` only captures *interactive* sign-ins. A managed "
-    "Windows device authenticating via Windows Hello/WAM does a lot of its Entra traffic as "
-    "silent, non-interactive token refreshes, and those land in "
-    "**`AADNonInteractiveUserSignInLogs`** instead, a separate table the Unmanaged Device Risk tab "
-    "now also queries. If Step 3g shows `RowCount = 0`, that table isn't being ingested in this "
-    "workspace at all (it needs its own Entra ID diagnostic setting), so the tab's picture stays "
-    "limited to whatever `SigninLogs` alone shows.\n>\n"
+    "> **Reading Step 3f:** `SigninLogs` only captures *interactive* sign-ins; a managed Windows "
+    "device authenticating via Windows Hello/WAM does a lot of its Entra traffic as silent, "
+    "non-interactive token refreshes, which land in `AADNonInteractiveUserSignInLogs` instead. "
+    "That table isn't being ingested in this workspace at all (Step 3g confirms `RowCount = 0`), "
+    "so it can't be queried here; the Unmanaged Device Risk tab's Entra-based readings are built "
+    "from `SigninLogs` alone, and Step 3f is what that data actually looks like.\n>\n"
     "> If Step 3f's `DeviceDetail` values are entirely macOS + Safari/Firefox with "
     "`isManaged:false`, `isCompliant:false`, and no `trustType`, that's expected and not a "
     "workbook bug: plain browser sign-ins on macOS essentially never carry Entra device-trust "
@@ -908,7 +902,9 @@ items.append(md_item(
     "have the Defender sensor installed without ever being registered as a trusted device in Entra "
     "ID (common when devices are on-prem domain-joined and onboarded to MDE via GPO/SCCM rather "
     "than through Entra hybrid join). If that's what's happening here, the registration gap itself "
-    "is a residual-risk finding worth reporting on its own, separate from device-level BYOD risk.",
+    "is a residual-risk finding worth reporting on its own, separate from device-level BYOD risk. "
+    "If `AADNonInteractiveUserSignInLogs` ever starts showing rows in Step 3g, that's a signal "
+    "it's worth re-adding to the main queries.",
     "setup",
 ))
 
