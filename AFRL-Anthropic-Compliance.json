@@ -1,0 +1,1111 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# AFRL / DoD Personnel — Anthropic Access Compliance Monitoring\n**Classification: TLP:AMBER — Internal use only**\n\n> DTS continuously monitors personnel on AFRL-funded projects for access to Anthropic-hosted AI services, using Microsoft Sentinel and Microsoft Defender telemetry, as an auditable compliance control. This workbook is the reporting and investigation view for that control — start on **Executive Summary** for the current compliance posture, or jump to a specific tab above.\n>\n> First time here? See the **Setup & Validation** tab for data source requirements and how monitored personnel are maintained."
+      },
+      "name": "header-text"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "param-timerange",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time Range",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 2592000000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 2592000000
+                },
+                {
+                  "durationMs": 7776000000
+                },
+                {
+                  "durationMs": 31536000000
+                }
+              ]
+            }
+          },
+          {
+            "id": "param-tab",
+            "version": "KqlParameterItem/1.0",
+            "name": "selectedTab",
+            "label": "View",
+            "type": 2,
+            "isRequired": true,
+            "value": "executive",
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "jsonData": "[{\"value\": \"executive\", \"label\": \"\\ud83d\\udccb Executive Summary\"}, {\"value\": \"anthropic\", \"label\": \"\\ud83c\\udfaf Anthropic Access\"}, {\"value\": \"aiusage\", \"label\": \"\\ud83e\\udd16 AI Usage Context\"}, {\"value\": \"coverage\", \"label\": \"\\ud83d\\udc65 Monitored User Coverage\"}, {\"value\": \"investigations\", \"label\": \"\\ud83d\\udd0d Detection Investigations\"}, {\"value\": \"devices\", \"label\": \"\\ud83d\\udcbb Known Devices\"}, {\"value\": \"risk\", \"label\": \"\\u26a0\\ufe0f Unmanaged Device Risk\"}, {\"value\": \"setup\", \"label\": \"\\u2699\\ufe0f Setup & Validation\"}]"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "parameters"
+    },
+    {
+      "type": 11,
+      "content": {
+        "version": "LinkItem/1.0",
+        "style": "tabs",
+        "links": [
+          {
+            "id": "tab-link-executive",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "📋 Executive Summary",
+            "subTarget": "executive",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-anthropic",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "🎯 Anthropic Access",
+            "subTarget": "anthropic",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-aiusage",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "🤖 AI Usage Context",
+            "subTarget": "aiusage",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-coverage",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "👥 Monitored User Coverage",
+            "subTarget": "coverage",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-investigations",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "🔍 Detection Investigations",
+            "subTarget": "investigations",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-devices",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "💻 Known Devices",
+            "subTarget": "devices",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-risk",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "⚠️ Unmanaged Device Risk",
+            "subTarget": "risk",
+            "style": "link"
+          },
+          {
+            "id": "tab-link-setup",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "⚙️ Setup & Validation",
+            "subTarget": "setup",
+            "style": "link"
+          }
+        ]
+      },
+      "name": "tab-navigation"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Monthly Compliance Dashboard\n> Personnel and detection counts below use a fixed **current calendar month** window, independent of the time range selector, so this tile row matches whatever month you're reporting on. Detail tabs use the selector above."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "executive"
+      },
+      "name": "exec-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nProjectUsers\n| summarize ['Monitored Personnel'] = dcount(UserUPN)",
+        "size": 4,
+        "title": "Monitored Personnel",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Monitored Personnel",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "executive"
+      },
+      "name": "exec-tile-personnel",
+      "customWidth": "25"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nlet ThisMonth = startofmonth(now());\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp >= ThisMonth\n| where RemoteUrl has_any (\n    \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| summarize ['Anthropic Detections'] = count()",
+        "size": 4,
+        "title": "Anthropic Detections (This Month)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Anthropic Detections",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "executive"
+      },
+      "name": "exec-tile-detections",
+      "customWidth": "25"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Compliance\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where Status !in (\"Closed\", \"Resolved\")\n| summarize ['Open Investigations'] = dcount(IncidentNumber)",
+        "size": 4,
+        "title": "Open Investigations",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Open Investigations",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "orange"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "executive"
+      },
+      "name": "exec-tile-open-investigations",
+      "customWidth": "25"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nlet ThisMonth = startofmonth(now());\nlet AnthropicHits =\n    union isfuzzy=true\n        DeviceNetworkEvents,\n        (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n                   DeviceName:string) [])\n    | where Timestamp >= ThisMonth\n    | where RemoteUrl has_any (\n        \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n    | where isnotempty(UserUPN)\n    | join kind=inner ProjectUsers on UserUPN;\nlet Detections = toscalar(AnthropicHits | summarize coalesce(count(), 0));\nlet OpenInvestigations = toscalar(\n    union isfuzzy=true SecurityIncident\n    | where Title == \"AFRL Anthropic Compliance\"\n    | summarize arg_max(LastModifiedTime, *) by IncidentNumber\n    | where Status !in (\"Closed\", \"Resolved\")\n    | summarize coalesce(dcount(IncidentNumber), 0));\nprint ['Compliance Status'] = case(\n    Detections == 0, \"🟢 Green\",\n    OpenInvestigations > 0, \"🟠 Amber — Investigating\",\n    \"🔴 Red — Unresolved Detection\")",
+        "size": 4,
+        "title": "Compliance Status",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Compliance Status",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "green"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "executive"
+      },
+      "name": "exec-tile-status",
+      "customWidth": "25"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Monthly Report Narrative (template)\n> Copy-paste starting point — fill in the bracketed values from the tiles above (Monitored Personnel, Anthropic Detections, Compliance Status) and today's date. Not auto-generated, so it can't render oddly or drift from what KQL happens to compute; it's a template, not a substitute for analyst review.\n\n> DTS continuously monitors **[Monitored Personnel]** personnel associated with AFRL-funded projects for access to Anthropic-hosted services using Microsoft Sentinel and Microsoft Defender telemetry. **[No access to Anthropic services was detected / N access event(s) were detected and are under review]** during **[Month Year]**. Monitoring coverage was reviewed and remains current as of **[today's date]**. The primary residual risk remains potential use of unmanaged personal devices or third-party platforms outside University visibility."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "executive"
+      },
+      "name": "exec-narrative"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Monitoring Coverage Snapshot"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "executive"
+      },
+      "name": "exec-coverage-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = column_ifexists('LastUpdatedTimeUTC', column_ifexists('TimeGenerated', datetime(null)))\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize ['Staff Covered'] = dcount(UserUPN)",
+        "size": 4,
+        "title": "Staff Covered",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Staff Covered",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "executive"
+      },
+      "name": "exec-coverage-tile-staff",
+      "customWidth": "33"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = column_ifexists('LastUpdatedTimeUTC', column_ifexists('TimeGenerated', datetime(null)))\n    | where isnotempty(UserUPN);\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp > ago(30d)\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| summarize ['Devices Seen (30d)'] = dcount(DeviceName)",
+        "size": 4,
+        "title": "Devices Seen (30d)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Devices Seen (30d)",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "executive"
+      },
+      "name": "exec-coverage-tile-devices",
+      "customWidth": "33"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = column_ifexists('LastUpdatedTimeUTC', column_ifexists('TimeGenerated', datetime(null)))\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize ['Last Watchlist Review'] = max(LastUpdated)",
+        "size": 4,
+        "title": "Last Watchlist Review",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Last Watchlist Review",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "executive"
+      },
+      "name": "exec-coverage-tile-lastreview",
+      "customWidth": "33"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Residual Risks\n- **Unmanaged personal devices** — activity from BYOD cannot be fully monitored; see the **Unmanaged Device Risk** tab for the current unmanaged-activity percentage.\n- **Non-University networks** — off-network access (personal ISP, mobile data) bypasses on-prem network telemetry entirely; only endpoint-based signals (MDE) still see it.\n- **Embedded Anthropic services within third-party products** — a third-party product that calls the Anthropic API server-side (not from the monitored user's device) will not appear in this monitoring and is a known blind spot."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "executive"
+      },
+      "name": "exec-residual-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp {TimeRange}\n| where RemoteUrl has_any (\n    \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| summarize Detections = count() by bin(Timestamp, 1d)\n| sort by Timestamp asc",
+        "size": 0,
+        "title": "Anthropic Activity Timeline",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "executive"
+      },
+      "name": "exec-timeline"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Anthropic Access (Primary Control)\n> Monitored domains: `claude.ai`, `anthropic.com`, `api.anthropic.com`, `console.anthropic.com`, `docs.anthropic.com`, `support.anthropic.com`. This list is intentionally hardcoded (not watchlist-driven) so the compliance control's scope can't drift from an unrelated, more loosely-curated domain list.\n>\n> **Outcome this answers:** were any monitored individuals observed accessing Anthropic services in the selected period?"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "anthropic"
+      },
+      "name": "anthropic-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp {TimeRange}\n| where RemoteUrl has_any (\n    \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| project Timestamp, UserUPN, Name, Project, DeviceName, RemoteUrl\n| order by Timestamp desc\n| summarize ['Detections'] = count()",
+        "size": 4,
+        "title": "Detections (Selected Period)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Detections",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "anthropic"
+      },
+      "name": "anthropic-tile-detections",
+      "customWidth": "25"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp {TimeRange}\n| where RemoteUrl has_any (\n    \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| project Timestamp, UserUPN, Name, Project, DeviceName, RemoteUrl\n| order by Timestamp desc\n| summarize ['Users Detected'] = dcount(UserUPN)",
+        "size": 4,
+        "title": "Users Detected",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Users Detected",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "orange"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "anthropic"
+      },
+      "name": "anthropic-tile-users",
+      "customWidth": "25"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp {TimeRange}\n| where RemoteUrl has_any (\n    \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| project Timestamp, UserUPN, Name, Project, DeviceName, RemoteUrl\n| order by Timestamp desc\n| summarize ['First Seen'] = min(Timestamp)",
+        "size": 4,
+        "title": "First Seen",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "First Seen",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "anthropic"
+      },
+      "name": "anthropic-tile-firstseen",
+      "customWidth": "25"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp {TimeRange}\n| where RemoteUrl has_any (\n    \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| project Timestamp, UserUPN, Name, Project, DeviceName, RemoteUrl\n| order by Timestamp desc\n| summarize ['Last Seen'] = max(Timestamp)",
+        "size": 4,
+        "title": "Last Seen",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Last Seen",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "anthropic"
+      },
+      "name": "anthropic-tile-lastseen",
+      "customWidth": "25"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp {TimeRange}\n| where RemoteUrl has_any (\n    \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| project Timestamp, UserUPN, Name, Project, DeviceName, RemoteUrl\n| order by Timestamp desc",
+        "size": 0,
+        "title": "Anthropic Access — Detail",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "anthropic"
+      },
+      "name": "anthropic-detail-grid"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## AI Usage Context\n> If a monitored individual states they used Claude, this tab shows what they actually accessed — covering OpenAI/ChatGPT, Microsoft Copilot, Google Gemini, Perplexity, Mistral, Poe and Hugging Face. The platform list is extensible on request."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "aiusage"
+      },
+      "name": "aiusage-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nlet AIPlatforms = datatable(Domain:string, Platform:string) [\n    \"chatgpt.com\",             \"OpenAI / ChatGPT\",\n    \"chat.openai.com\",         \"OpenAI / ChatGPT\",\n    \"openai.com\",              \"OpenAI / ChatGPT\",\n    \"copilot.microsoft.com\",   \"Microsoft Copilot\",\n    \"copilot.cloud.microsoft\", \"Microsoft Copilot\",\n    \"gemini.google.com\",       \"Google Gemini\",\n    \"bard.google.com\",         \"Google Gemini\",\n    \"perplexity.ai\",           \"Perplexity\",\n    \"mistral.ai\",              \"Mistral\",\n    \"chat.mistral.ai\",         \"Mistral\",\n    \"poe.com\",                 \"Poe\",\n    \"huggingface.co\",          \"Hugging Face\"\n];\nlet PlatformDomains = AIPlatforms | project Domain;\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp {TimeRange}\n| extend CleanHost = tolower(trim_start(@\"www.\", tostring(parse_url(RemoteUrl).Host)))\n| where isnotempty(CleanHost)\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| extend Domain2 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| extend Domain3 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| where Domain2 in (PlatformDomains) or Domain3 in (PlatformDomains)\n| extend MatchDomain = iff(Domain3 in (PlatformDomains), Domain3, Domain2)\n| join kind=inner AIPlatforms on $left.MatchDomain == $right.Domain\n| summarize Events = count(), Users = dcount(UserUPN), LastSeen = max(Timestamp) by Platform\n| sort by Events desc",
+        "size": 0,
+        "title": "Top AI Platforms Used",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "aiusage"
+      },
+      "name": "aiusage-top-platforms",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nlet AIPlatforms = datatable(Domain:string, Platform:string) [\n    \"chatgpt.com\",             \"OpenAI / ChatGPT\",\n    \"chat.openai.com\",         \"OpenAI / ChatGPT\",\n    \"openai.com\",              \"OpenAI / ChatGPT\",\n    \"copilot.microsoft.com\",   \"Microsoft Copilot\",\n    \"copilot.cloud.microsoft\", \"Microsoft Copilot\",\n    \"gemini.google.com\",       \"Google Gemini\",\n    \"bard.google.com\",         \"Google Gemini\",\n    \"perplexity.ai\",           \"Perplexity\",\n    \"mistral.ai\",              \"Mistral\",\n    \"chat.mistral.ai\",         \"Mistral\",\n    \"poe.com\",                 \"Poe\",\n    \"huggingface.co\",          \"Hugging Face\"\n];\nlet PlatformDomains = AIPlatforms | project Domain;\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp {TimeRange}\n| extend CleanHost = tolower(trim_start(@\"www.\", tostring(parse_url(RemoteUrl).Host)))\n| where isnotempty(CleanHost)\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| extend Domain2 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| extend Domain3 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| where Domain2 in (PlatformDomains) or Domain3 in (PlatformDomains)\n| extend MatchDomain = iff(Domain3 in (PlatformDomains), Domain3, Domain2)\n| join kind=inner AIPlatforms on $left.MatchDomain == $right.Domain\n| summarize Events = count() by bin(Timestamp, 1d), Platform\n| sort by Timestamp asc",
+        "size": 0,
+        "title": "AI Platform Usage — Trend",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "aiusage"
+      },
+      "name": "aiusage-trend",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nlet AIPlatforms = datatable(Domain:string, Platform:string) [\n    \"chatgpt.com\",             \"OpenAI / ChatGPT\",\n    \"chat.openai.com\",         \"OpenAI / ChatGPT\",\n    \"openai.com\",              \"OpenAI / ChatGPT\",\n    \"copilot.microsoft.com\",   \"Microsoft Copilot\",\n    \"copilot.cloud.microsoft\", \"Microsoft Copilot\",\n    \"gemini.google.com\",       \"Google Gemini\",\n    \"bard.google.com\",         \"Google Gemini\",\n    \"perplexity.ai\",           \"Perplexity\",\n    \"mistral.ai\",              \"Mistral\",\n    \"chat.mistral.ai\",         \"Mistral\",\n    \"poe.com\",                 \"Poe\",\n    \"huggingface.co\",          \"Hugging Face\"\n];\nlet PlatformDomains = AIPlatforms | project Domain;\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp {TimeRange}\n| extend CleanHost = tolower(trim_start(@\"www.\", tostring(parse_url(RemoteUrl).Host)))\n| where isnotempty(CleanHost)\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| extend Domain2 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| extend Domain3 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| where Domain2 in (PlatformDomains) or Domain3 in (PlatformDomains)\n| extend MatchDomain = iff(Domain3 in (PlatformDomains), Domain3, Domain2)\n| join kind=inner AIPlatforms on $left.MatchDomain == $right.Domain\n| summarize Events = count(), Devices = dcount(DeviceName), LastSeen = max(Timestamp)\n    by UserUPN, Name, Project, Platform\n| sort by LastSeen desc",
+        "size": 0,
+        "title": "Users by Platform",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "aiusage"
+      },
+      "name": "aiusage-by-user"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Monitored User Coverage\n> **Outcome this answers:** can DTS demonstrate that all project personnel were included in monitoring? Sourced entirely from the `DoD-Anthropic-Monitoring` watchlist (`UserUPN`, `Name`, `Project`). This deployment's watchlist doesn't track a `Status`/`DateAdded`/`DateRemoved` history, so this tab shows current headcount and roster only — it can't show who was added or removed and when. Add those columns to the watchlist later if you want that history back; the workbook doesn't require it."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "coverage"
+      },
+      "name": "coverage-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = column_ifexists('LastUpdatedTimeUTC', column_ifexists('TimeGenerated', datetime(null)))\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize ['Staff Under Monitoring'] = dcount(UserUPN)",
+        "size": 4,
+        "title": "Staff Under Monitoring",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Staff Under Monitoring",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "coverage"
+      },
+      "name": "coverage-tile-active",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = column_ifexists('LastUpdatedTimeUTC', column_ifexists('TimeGenerated', datetime(null)))\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize ['Last Watchlist Update'] = max(LastUpdated)",
+        "size": 4,
+        "title": "Last Watchlist Update",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Last Watchlist Update",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "coverage"
+      },
+      "name": "coverage-tile-lastupdate",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = column_ifexists('LastUpdatedTimeUTC', column_ifexists('TimeGenerated', datetime(null)))\n    | where isnotempty(UserUPN);\nProjectUsers\n| project UserUPN, Name, Project, LastUpdated\n| sort by Name asc",
+        "size": 0,
+        "title": "Monitored Personnel Roster",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "coverage"
+      },
+      "name": "coverage-roster"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Detection Investigations\n> **Outcome this answers:** what happened when activity was detected? Sourced from `SecurityIncident` for incidents raised by the **AFRL Anthropic Compliance** analytics rule. To record a reviewed-and-accepted detection as a compliance exception, add the incident label `ComplianceException` when closing it in Sentinel."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "investigations"
+      },
+      "name": "investigations-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Compliance\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where CreatedTime {TimeRange}\n| summarize ['Investigations Opened'] = dcount(IncidentNumber)",
+        "size": 4,
+        "title": "Investigations Opened (Selected Period)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Investigations Opened",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "orange"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "investigations"
+      },
+      "name": "investigations-tile-opened",
+      "customWidth": "25"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Compliance\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where Status in (\"Closed\", \"Resolved\") and ClosedTime {TimeRange}\n| summarize ['Investigations Closed'] = dcount(IncidentNumber)",
+        "size": 4,
+        "title": "Investigations Closed (Selected Period)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Investigations Closed",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "green"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "investigations"
+      },
+      "name": "investigations-tile-closed",
+      "customWidth": "25"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Compliance\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where Status !in (\"Closed\", \"Resolved\")\n| summarize ['Currently Open'] = dcount(IncidentNumber)",
+        "size": 4,
+        "title": "Currently Open",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Currently Open",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "investigations"
+      },
+      "name": "investigations-tile-open-now",
+      "customWidth": "25"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Compliance\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| mv-expand Labels\n| where tostring(Labels.labelName) =~ \"ComplianceException\"\n| summarize ['Compliance Exceptions'] = dcount(IncidentNumber)",
+        "size": 4,
+        "title": "Compliance Exceptions",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Compliance Exceptions",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "blue"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "investigations"
+      },
+      "name": "investigations-tile-exceptions",
+      "customWidth": "25"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Compliance\"\n| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n| where CreatedTime {TimeRange}\n| project IncidentNumber, Title, Severity, Status, Classification,\n    Owner = tostring(Owner.assignedTo), CreatedTime, ClosedTime\n| sort by CreatedTime desc",
+        "size": 0,
+        "title": "Investigation Detail",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "investigations"
+      },
+      "name": "investigations-detail"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Known Devices\n> **Outcome this answers:** are researchers using University-managed devices? `ManagedStatus` reflects whether the last-seen device is onboarded to Microsoft Defender for Endpoint — presence there is a floor for \"managed\", not a guarantee of full Intune compliance (see **Unmanaged Device Risk** for the Entra sign-in compliance signal)."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "devices"
+      },
+      "name": "devices-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nlet Activity =\n    union isfuzzy=true\n        DeviceNetworkEvents,\n        (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n                   DeviceName:string) [])\n    | where Timestamp {TimeRange}\n    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n    | where isnotempty(UserUPN)\n    | join kind=inner ProjectUsers on UserUPN;\nlet LastDevice = Activity\n    | summarize (LastSeen, LastSeenDevice) = arg_max(Timestamp, DeviceName) by UserUPN;\nlet DeviceCounts = Activity\n    | summarize DeviceCount = dcount(DeviceName) by UserUPN;\nlet ManagedStatus =\n    union isfuzzy=true\n        DeviceInfo,\n        (datatable(TimeGenerated:datetime, DeviceName:string, OnboardingStatus:string) [])\n    | summarize arg_max(TimeGenerated, OnboardingStatus) by DeviceName;\nProjectUsers\n| join kind=inner DeviceCounts on UserUPN\n| join kind=inner LastDevice on UserUPN\n| join kind=leftouter ManagedStatus on $left.LastSeenDevice == $right.DeviceName\n| project UserUPN, Name, Project, DeviceCount, LastSeenDevice, LastSeen,\n    ManagedStatus = iff(isempty(OnboardingStatus), \"Unknown\", OnboardingStatus)\n| sort by LastSeen desc",
+        "size": 0,
+        "title": "Devices by Monitored User",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "ManagedStatus",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Onboarded",
+                    "representation": "green",
+                    "text": "Managed (MDE)"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Unknown",
+                    "representation": "redBright",
+                    "text": "Unmanaged / Unknown"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "orange",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "devices"
+      },
+      "name": "devices-table"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Unmanaged Device Risk\n> **Outcome this answers:** activity from unmanaged devices cannot be fully monitored and remains a residual risk — this tab quantifies how much of monitored activity that is. `SigninLogs` requires Entra ID P1/P2; if absent, the Entra panels below will be empty and the MDE-based tile is the fallback signal."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "risk"
+      },
+      "name": "risk-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nlet Activity =\n    union isfuzzy=true\n        DeviceNetworkEvents,\n        (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n                   DeviceName:string) [])\n    | where Timestamp {TimeRange}\n    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n    | where isnotempty(UserUPN)\n    | join kind=inner ProjectUsers on UserUPN\n    | summarize Total = count() by DeviceName;\nlet ManagedStatus =\n    union isfuzzy=true\n        DeviceInfo,\n        (datatable(TimeGenerated:datetime, DeviceName:string, OnboardingStatus:string) [])\n    | summarize arg_max(TimeGenerated, OnboardingStatus) by DeviceName;\nActivity\n| join kind=leftouter ManagedStatus on DeviceName\n| extend Managed = OnboardingStatus == \"Onboarded\"\n| summarize TotalEvents = sum(Total), ManagedEvents = sumif(Total, Managed == true)\n| extend ['Unmanaged Activity %'] = round(100.0 * (TotalEvents - ManagedEvents) / iff(TotalEvents == 0, 1, TotalEvents), 1)\n| project ['Unmanaged Activity %']",
+        "size": 4,
+        "title": "Unmanaged Network Activity % (MDE-based)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Unmanaged Activity %",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "redBright"
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "risk"
+      },
+      "name": "risk-tile-unmanaged-pct",
+      "customWidth": "33"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nunion isfuzzy=true\n    SigninLogs,\n    (datatable(TimeGenerated:datetime, UserPrincipalName:string, DeviceDetail:dynamic,\n               AppDisplayName:string) [])\n| where TimeGenerated {TimeRange}\n| extend UserUPN = tolower(UserPrincipalName)\n| join kind=inner ProjectUsers on UserUPN\n| extend\n    DeviceIsManaged   = tostring(DeviceDetail.isManaged),\n    DeviceIsCompliant = tostring(DeviceDetail.isCompliant),\n    TrustType         = tostring(DeviceDetail.trustType)\n| summarize\n    SignIns           = count(),\n    ManagedSignIns    = countif(DeviceIsManaged == \"true\"),\n    CompliantSignIns  = countif(DeviceIsCompliant == \"true\"),\n    LastSeen          = max(TimeGenerated)\n  by UserUPN, Name, Project\n| extend ['Unmanaged Sign-in %'] = round(100.0 * (SignIns - ManagedSignIns) / iff(SignIns == 0, 1, SignIns), 1)\n| sort by ['Unmanaged Sign-in %'] desc",
+        "size": 0,
+        "title": "Entra Sign-ins — Device Compliance (Monitored Users)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "risk"
+      },
+      "name": "risk-signin-table"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "> **Residual risk statement:** activity from personal (unmanaged) devices, non-University networks, or Anthropic services embedded server-side within third-party products falls outside what this monitoring can see. Report the tiles above as supporting evidence for that statement, not as proof of full coverage."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "risk"
+      },
+      "name": "risk-callout"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Setup & Validation\n### Step 1: Create the watchlist\nSentinel → Watchlists → **+ New** → name it exactly `DoD-Anthropic-Monitoring`. Minimum columns: `UserUPN, Name, Project` (see `watchlists/DoD-Anthropic-Monitoring.csv`). SearchKey can be set to whatever you like — the workbook always resolves the real `UserUPN` column directly and only falls back to SearchKey if that column is missing.\n\n> Optional: add `Status`, `DateAdded`, `DateRemoved` columns if you want the **Monitored User Coverage** tab to track *when* staff were added/removed, not just who's currently monitored. The workbook shipped here doesn't require them — this deployment's watchlist doesn't have them.\n\n### Step 2: Analytics rule\nThe Detection Investigations tab and the Compliance Status/Investigations tiles filter `SecurityIncident` on `Title == \"AFRL Anthropic Compliance\"`. If your Sentinel analytics rule's display name (or `alertDisplayNameFormat` override, if it has one) is anything other than exactly `AFRL Anthropic Compliance`, update `RULE_TITLE` in `scripts/build_afrl_anthropic_workbook.py` and regenerate — otherwise those panels will silently show zero regardless of actual activity. `analytics-rules/afrl-anthropic-access-detection.json` is kept in the repo as a reference/backup ARM template (same title, same entity mappings) — not required if you already have a rule deployed.\n\n### Step 3: Validate data sources below"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN     = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name        = column_ifexists('Name', ''),\n        Project     = column_ifexists('Project', ''),\n        LastUpdated = column_ifexists('LastUpdatedTimeUTC', column_ifexists('TimeGenerated', datetime(null)))\n    | where isnotempty(UserUPN);\nProjectUsers\n| summarize TotalEntries = count(), LatestUpdate = max(LastUpdated)",
+        "size": 0,
+        "title": "Step 3a: DoD-Anthropic-Monitoring Watchlist Status",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-watchlist-status",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp > ago(3d)\n| summarize RowCount = count(), DistinctUsers = dcount(InitiatingProcessAccountUpn),\n    LatestRecord = max(Timestamp)",
+        "size": 0,
+        "title": "Step 3b: DeviceNetworkEvents Status",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-networkevents-status",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Compliance\"\n| summarize TotalIncidents = dcount(IncidentNumber), LatestRecord = max(TimeGenerated)",
+        "size": 0,
+        "title": "Step 3c: SecurityIncident — Rule Match Check",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-incident-status",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union isfuzzy=true\n    DeviceInfo,\n    (datatable(TimeGenerated:datetime, DeviceName:string, OnboardingStatus:string) [])\n| where TimeGenerated > ago(3d)\n| summarize RowCount = count(), Onboarded = countif(OnboardingStatus == \"Onboarded\"),\n    LatestRecord = max(TimeGenerated)",
+        "size": 0,
+        "title": "Step 3d: DeviceInfo Status (Known Devices tab)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-deviceinfo-status",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union isfuzzy=true\n    SigninLogs,\n    (datatable(TimeGenerated:datetime, UserPrincipalName:string, DeviceDetail:dynamic,\n               AppDisplayName:string) [])\n| where TimeGenerated > ago(3d)\n| summarize RowCount = count(), LatestRecord = max(TimeGenerated)",
+        "size": 0,
+        "title": "Step 3e: SigninLogs Status (Unmanaged Device Risk tab — requires Entra ID P1/P2)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-signinlogs-status",
+      "customWidth": "50"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n### Notes\n\n**Why the Anthropic domain list is hardcoded, not watchlist-driven:** this is the primary compliance control. A shared, general-purpose domain watchlist (like `AI-App-Domains` used elsewhere in this repo) can be edited for unrelated reasons by someone unaware of the compliance implication. The Anthropic domain list here is fixed in both the workbook and the analytics rule so the two can never drift out of sync with each other.\n\n**Join case-sensitivity:** all UPN joins normalize both sides with `tolower()` before joining — KQL `join` is case-sensitive by default, and Defender/watchlist UPN casing isn't guaranteed to match.\n\n**`DeviceNetworkEvents` uses `Timestamp`**, not `TimeGenerated`, in this tenant's schema (Defender Advanced Hunting naming) — confirmed against a working hunting query before this workbook was built.\n\n**Compliance exceptions** are tracked as a Sentinel incident label (`ComplianceException`) rather than a separate table — apply it when closing an incident that was reviewed and accepted as expected/approved activity."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-notes"
+    }
+  ],
+  "fallbackResourceIds": [
+    "/subscriptions/19f0e8be-c471-41e7-8ec0-69998a50a129/resourcegroups/rg-sentinel-ae/providers/microsoft.operationalinsights/workspaces/uon-la-sentinel-staff"
+  ],
+  "fromTemplateId": "sentinel-UserWorkbook",
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
