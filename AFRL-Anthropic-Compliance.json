@@ -4,7 +4,7 @@
     {
       "type": 1,
       "content": {
-        "json": "# AFRL / DoD Personnel — Anthropic Access Compliance Monitoring\n**Classification: TLP:AMBER — Internal use only**\n\n> DTS continuously monitors personnel on AFRL-funded projects for access to Anthropic-hosted AI services, using Microsoft Sentinel and Microsoft Defender telemetry, as an auditable compliance control. This workbook is the reporting and investigation view for that control — start on **Executive Summary** for the current compliance posture, or jump to a specific tab above.\n>\n> First time here? See the **Setup & Validation** tab for data source requirements and how monitored personnel are maintained."
+        "json": "# AFRL / DoD Personnel: Anthropic Access Compliance Monitoring\n**Classification: TLP:AMBER (Internal use only)**\n\n> DTS continuously monitors personnel on AFRL-funded projects for access to Anthropic-hosted AI services, using Microsoft Sentinel and Microsoft Defender telemetry, as an auditable compliance control. This workbook is the reporting and investigation view for that control. Start on **Executive Summary** for the current compliance posture, or jump to a specific tab above.\n>\n> First time here? See the **Setup & Validation** tab for data source requirements and how monitored personnel are maintained."
       },
       "name": "header-text"
     },
@@ -238,7 +238,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nlet ThisMonth = startofmonth(now());\nlet AnthropicHits =\n    union isfuzzy=true\n        DeviceNetworkEvents,\n        (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n                   DeviceName:string) [])\n    | where Timestamp >= ThisMonth\n    | where RemoteUrl has_any (\n        \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n    | where isnotempty(UserUPN)\n    | join kind=inner ProjectUsers on UserUPN;\nlet Detections = toscalar(AnthropicHits | summarize coalesce(count(), 0));\nlet OpenInvestigations = toscalar(\n    union isfuzzy=true SecurityIncident\n    | where Title == \"AFRL Anthropic Compliance\"\n    | summarize arg_max(LastModifiedTime, *) by IncidentNumber\n    | where Status !in (\"Closed\", \"Resolved\")\n    | summarize coalesce(dcount(IncidentNumber), 0));\nprint ['Compliance Status'] = case(\n    Detections == 0, \"🟢 Green\",\n    OpenInvestigations > 0, \"🟠 Amber — Investigating\",\n    \"🔴 Red — Unresolved Detection\")",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nlet ThisMonth = startofmonth(now());\nlet AnthropicHits =\n    union isfuzzy=true\n        DeviceNetworkEvents,\n        (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n                   DeviceName:string) [])\n    | where Timestamp >= ThisMonth\n    | where RemoteUrl has_any (\n        \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n    | where isnotempty(UserUPN)\n    | join kind=inner ProjectUsers on UserUPN;\nlet Detections = toscalar(AnthropicHits | summarize coalesce(count(), 0));\nlet OpenInvestigations = toscalar(\n    union isfuzzy=true SecurityIncident\n    | where Title == \"AFRL Anthropic Compliance\"\n    | summarize arg_max(LastModifiedTime, *) by IncidentNumber\n    | where Status !in (\"Closed\", \"Resolved\")\n    | summarize coalesce(dcount(IncidentNumber), 0));\nprint ['Compliance Status'] = case(\n    Detections == 0, \"🟢 Green\",\n    OpenInvestigations > 0, \"🟠 Amber: Investigating\",\n    \"🔴 Red: Unresolved Detection\")",
         "size": 4,
         "title": "Compliance Status",
         "queryType": 0,
@@ -266,7 +266,7 @@
     {
       "type": 1,
       "content": {
-        "json": "### Monthly Report Narrative (template)\n> Copy-paste starting point — fill in the bracketed values from the tiles above (Monitored Personnel, Anthropic Detections, Compliance Status) and today's date. Not auto-generated, so it can't render oddly or drift from what KQL happens to compute; it's a template, not a substitute for analyst review.\n\n> DTS continuously monitors **[Monitored Personnel]** personnel associated with AFRL-funded projects for access to Anthropic-hosted services using Microsoft Sentinel and Microsoft Defender telemetry. **[No access to Anthropic services was detected / N access event(s) were detected and are under review]** during **[Month Year]**. Monitoring coverage was reviewed and remains current as of **[today's date]**. The primary residual risk remains potential use of unmanaged personal devices or third-party platforms outside University visibility."
+        "json": "### Monthly Report Narrative (template)\n> Copy-paste starting point: fill in the bracketed values from the tiles above (Monitored Personnel, Anthropic Detections, Compliance Status) and today's date. Not auto-generated, so it can't render oddly or drift from what KQL happens to compute; it's a template, not a substitute for analyst review.\n\n> DTS continuously monitors **[Monitored Personnel]** personnel associated with AFRL-funded projects for access to Anthropic-hosted services using Microsoft Sentinel and Microsoft Defender telemetry. **[No access to Anthropic services was detected / N access event(s) were detected and are under review]** during **[Month Year]**. Monitoring coverage was reviewed and remains current as of **[today's date]**. The primary residual risk remains potential use of unmanaged personal devices or third-party platforms outside University visibility."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -377,7 +377,7 @@
     {
       "type": 1,
       "content": {
-        "json": "### Residual Risks\n- **Unmanaged personal devices** — activity from BYOD cannot be fully monitored; see the **Unmanaged Device Risk** tab for the current unmanaged-activity percentage.\n- **Non-University networks** — off-network access (personal ISP, mobile data) bypasses on-prem network telemetry entirely; only endpoint-based signals (MDE) still see it.\n- **Embedded Anthropic services within third-party products** — a third-party product that calls the Anthropic API server-side (not from the monitored user's device) will not appear in this monitoring and is a known blind spot."
+        "json": "### Residual Risks\n- **Unmanaged personal devices**: activity from BYOD cannot be fully monitored; see the **Unmanaged Device Risk** tab for the current unmanaged-activity percentage.\n- **Non-University networks**: off-network access (personal ISP, mobile data) bypasses on-prem network telemetry entirely; only endpoint-based signals (MDE) still see it.\n- **Embedded Anthropic services within third-party products**: a third-party product that calls the Anthropic API server-side (not from the monitored user's device) will not appear in this monitoring and is a known blind spot."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -538,7 +538,7 @@
         "version": "KqlItem/1.0",
         "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp {TimeRange}\n| where RemoteUrl has_any (\n    \"claude.ai\",\n    \"anthropic.com\",\n    \"api.anthropic.com\",\n    \"console.anthropic.com\",\n    \"docs.anthropic.com\",\n    \"support.anthropic.com\")\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| project Timestamp, UserUPN, Name, Project, DeviceName, RemoteUrl\n| order by Timestamp desc",
         "size": 0,
-        "title": "Anthropic Access — Detail",
+        "title": "Anthropic Access: Detail",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
         "visualization": "table"
@@ -553,7 +553,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## AI Usage Context\n> If a monitored individual states they used Claude, this tab shows what they actually accessed — covering OpenAI/ChatGPT, Microsoft Copilot, Google Gemini, Perplexity, Mistral, Poe and Hugging Face. The platform list is extensible on request."
+        "json": "## AI Usage Context\n> If a monitored individual states they used Claude, this tab shows what they actually accessed, covering OpenAI/ChatGPT, Microsoft Copilot, Google Gemini, Perplexity, Mistral, Poe and Hugging Face. The platform list is extensible on request."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -587,7 +587,7 @@
         "version": "KqlItem/1.0",
         "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nlet AIPlatforms = datatable(Domain:string, Platform:string) [\n    \"chatgpt.com\",             \"OpenAI / ChatGPT\",\n    \"chat.openai.com\",         \"OpenAI / ChatGPT\",\n    \"openai.com\",              \"OpenAI / ChatGPT\",\n    \"copilot.microsoft.com\",   \"Microsoft Copilot\",\n    \"copilot.cloud.microsoft\", \"Microsoft Copilot\",\n    \"gemini.google.com\",       \"Google Gemini\",\n    \"bard.google.com\",         \"Google Gemini\",\n    \"perplexity.ai\",           \"Perplexity\",\n    \"mistral.ai\",              \"Mistral\",\n    \"chat.mistral.ai\",         \"Mistral\",\n    \"poe.com\",                 \"Poe\",\n    \"huggingface.co\",          \"Hugging Face\"\n];\nlet PlatformDomains = AIPlatforms | project Domain;\nunion isfuzzy=true\n    DeviceNetworkEvents,\n    (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n               DeviceName:string) [])\n| where Timestamp {TimeRange}\n| extend CleanHost = tolower(trim_start(@\"www.\", tostring(parse_url(RemoteUrl).Host)))\n| where isnotempty(CleanHost)\n| extend UserUPN = tolower(InitiatingProcessAccountUpn)\n| where isnotempty(UserUPN)\n| join kind=inner ProjectUsers on UserUPN\n| extend Domain2 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| extend Domain3 = extract(@\"([a-zA-Z0-9-]+\\.[a-zA-Z0-9-]+\\.[a-zA-Z]{2,})$\", 1, CleanHost)\n| where Domain2 in (PlatformDomains) or Domain3 in (PlatformDomains)\n| extend MatchDomain = iff(Domain3 in (PlatformDomains), Domain3, Domain2)\n| join kind=inner AIPlatforms on $left.MatchDomain == $right.Domain\n| summarize Events = count() by bin(Timestamp, 1d), Platform\n| sort by Timestamp asc",
         "size": 0,
-        "title": "AI Platform Usage — Trend",
+        "title": "AI Platform Usage Trend",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
         "visualization": "timechart"
@@ -621,7 +621,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## Monitored User Coverage\n> **Outcome this answers:** can DTS demonstrate that all project personnel were included in monitoring? Sourced entirely from the `DoD-Anthropic-Monitoring` watchlist (`UserUPN`, `Name`, `Project`). This deployment's watchlist doesn't track a `Status`/`DateAdded`/`DateRemoved` history, so this tab shows current headcount and roster only — it can't show who was added or removed and when. Add those columns to the watchlist later if you want that history back; the workbook doesn't require it."
+        "json": "## Monitored User Coverage\n> **Outcome this answers:** can DTS demonstrate that all project personnel were included in monitoring? Sourced entirely from the `DoD-Anthropic-Monitoring` watchlist (`UserUPN`, `Name`, `Project`). This deployment's watchlist doesn't track a `Status`/`DateAdded`/`DateRemoved` history, so this tab shows current headcount and roster only; it can't show who was added or removed and when. Add those columns to the watchlist later if you want that history back; the workbook doesn't require it."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -855,7 +855,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## Known Devices\n> **Outcome this answers:** are researchers using University-managed devices? `ManagedStatus` reflects whether the last-seen device is onboarded to Microsoft Defender for Endpoint — presence there is a floor for \"managed\", not a guarantee of full Intune compliance (see **Unmanaged Device Risk** for the Entra sign-in compliance signal)."
+        "json": "## Known Devices\n> **Outcome this answers:** are researchers using University-managed devices? `ManagedStatus` reflects whether the last-seen device is onboarded to Microsoft Defender for Endpoint; presence there is a floor for \"managed\", not a guarantee of full Intune compliance (see **Unmanaged Device Risk** for the Entra sign-in compliance signal)."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -915,7 +915,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## Unmanaged Device Risk\n> **Outcome this answers:** activity from unmanaged devices cannot be fully monitored and remains a residual risk — this tab quantifies how much of monitored activity that is. `SigninLogs` requires Entra ID P1/P2; if absent, the Entra panels below will be empty and the MDE-based tile is the fallback signal.\n>\n> **Why device *name* and `TrustType`, not `isManaged`/`isCompliant`:** those two fields only populate when a device-based Conditional Access policy is actively enforcing them — without that, every sign-in reads `false`/empty regardless of the device's real status, which silently understates risk rather than overstates it. `TrustType` (Azure AD joined / Hybrid Azure AD joined / registered / blank) is populated far more reliably and is what the table below and the second tile use instead."
+        "json": "## Unmanaged Device Risk\n> **Outcome this answers:** activity from unmanaged devices cannot be fully monitored and remains a residual risk, and this tab quantifies how much of monitored activity that is. `SigninLogs` requires Entra ID P1/P2; if absent, the Entra panels below will be empty and the MDE-based tile is the fallback signal.\n>\n> **Why device *name* and `TrustType`, not `isManaged`/`isCompliant`:** those two fields only populate when a device-based Conditional Access policy is actively enforcing them. Without that, every sign-in reads `false`/empty regardless of the device's real status, which silently understates risk rather than overstates it. `TrustType` (Azure AD joined / Hybrid Azure AD joined / registered / blank) is populated far more reliably and is what the table below and the second tile use instead.\n>\n> **Read the Entra-based tiles alongside the MDE-based one, not instead of it.** macOS browsers (Safari, Firefox) essentially never present device-trust claims during sign-in, even from a fully Intune-managed Mac, unless Platform SSO / an SSO browser extension is specifically configured. A population that signs in mostly via macOS browsers can show 0% Entra-trusted while still being genuinely MDE-managed at the endpoint level. See Setup → Step 3f/3g for how to confirm which case you're in."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -1051,7 +1051,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## Setup & Validation\n### Step 1: Create the watchlist\nSentinel → Watchlists → **+ New** → name it exactly `DoD-Anthropic-Monitoring`. Minimum columns: `UserUPN, Name, Project` (see `watchlists/DoD-Anthropic-Monitoring.csv`). SearchKey can be set to whatever you like — the workbook always resolves the real `UserUPN` column directly and only falls back to SearchKey if that column is missing.\n\n> Optional: add `Status`, `DateAdded`, `DateRemoved` columns if you want the **Monitored User Coverage** tab to track *when* staff were added/removed, not just who's currently monitored. The workbook shipped here doesn't require them — this deployment's watchlist doesn't have them.\n\n### Step 2: Analytics rule\nThe Detection Investigations tab and the Compliance Status/Investigations tiles filter `SecurityIncident` on `Title == \"AFRL Anthropic Compliance\"`. If your Sentinel analytics rule's display name (or `alertDisplayNameFormat` override, if it has one) is anything other than exactly `AFRL Anthropic Compliance`, update `RULE_TITLE` in `scripts/build_afrl_anthropic_workbook.py` and regenerate — otherwise those panels will silently show zero regardless of actual activity. `analytics-rules/afrl-anthropic-access-detection.json` is kept in the repo as a reference/backup ARM template (same title, same entity mappings) — not required if you already have a rule deployed.\n\n### Step 3: Validate data sources below"
+        "json": "## Setup & Validation\n### Step 1: Create the watchlist\nSentinel → Watchlists → **+ New** → name it exactly `DoD-Anthropic-Monitoring`. Minimum columns: `UserUPN, Name, Project` (see `watchlists/DoD-Anthropic-Monitoring.csv`). SearchKey can be set to whatever you like; the workbook always resolves the real `UserUPN` column directly and only falls back to SearchKey if that column is missing.\n\n> Optional: add `Status`, `DateAdded`, `DateRemoved` columns if you want the **Monitored User Coverage** tab to track *when* staff were added/removed, not just who's currently monitored. The workbook shipped here doesn't require them; this deployment's watchlist doesn't have them.\n\n### Step 2: Analytics rule\nThe Detection Investigations tab and the Compliance Status/Investigations tiles filter `SecurityIncident` on `Title == \"AFRL Anthropic Compliance\"`. If your Sentinel analytics rule's display name (or `alertDisplayNameFormat` override, if it has one) is anything other than exactly `AFRL Anthropic Compliance`, update `RULE_TITLE` in `scripts/build_afrl_anthropic_workbook.py` and regenerate, otherwise those panels will silently show zero regardless of actual activity. `analytics-rules/afrl-anthropic-access-detection.json` is kept in the repo as a reference/backup ARM template (same title, same entity mappings), not required if you already have a rule deployed.\n\n### Step 3: Validate data sources below"
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -1104,7 +1104,7 @@
         "version": "KqlItem/1.0",
         "query": "union isfuzzy=true SecurityIncident\n| where Title == \"AFRL Anthropic Compliance\"\n| summarize TotalIncidents = dcount(IncidentNumber), LatestRecord = max(TimeGenerated)",
         "size": 0,
-        "title": "Step 3c: SecurityIncident — Rule Match Check",
+        "title": "Step 3c: SecurityIncident Rule Match Check",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
         "visualization": "table"
@@ -1142,7 +1142,7 @@
         "version": "KqlItem/1.0",
         "query": "union isfuzzy=true\n    SigninLogs,\n    AADNonInteractiveUserSignInLogs,\n    (datatable(TimeGenerated:datetime, UserPrincipalName:string, DeviceDetail:dynamic,\n               AppDisplayName:string) [])\n| where TimeGenerated > ago(3d)\n| summarize RowCount = count(), LatestRecord = max(TimeGenerated)",
         "size": 0,
-        "title": "Step 3e: SigninLogs Status (Unmanaged Device Risk tab — requires Entra ID P1/P2)",
+        "title": "Step 3e: SigninLogs Status (Unmanaged Device Risk tab, requires Entra ID P1/P2)",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
         "visualization": "table"
@@ -1159,7 +1159,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nunion isfuzzy=true\n    (SigninLogs | extend SourceTable = \"SigninLogs (interactive)\"),\n    (AADNonInteractiveUserSignInLogs | extend SourceTable = \"AADNonInteractiveUserSignInLogs\"),\n    (datatable(TimeGenerated:datetime, UserPrincipalName:string, DeviceDetail:dynamic,\n               AppDisplayName:string, SourceTable:string) [])\n| where TimeGenerated > ago(14d)\n| extend UserUPN = tolower(UserPrincipalName)\n| join kind=inner ProjectUsers on UserUPN\n| project TimeGenerated, UserUPN, SourceTable, AppDisplayName, DeviceDetail\n| sort by TimeGenerated desc\n| take 30",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nunion withsource=SourceTable isfuzzy=true\n    SigninLogs,\n    AADNonInteractiveUserSignInLogs,\n    (datatable(TimeGenerated:datetime, UserPrincipalName:string, DeviceDetail:dynamic,\n               AppDisplayName:string) [])\n| where TimeGenerated > ago(14d)\n| extend UserUPN = tolower(UserPrincipalName)\n| join kind=inner ProjectUsers on UserUPN\n| project TimeGenerated, UserUPN, SourceTable, AppDisplayName, DeviceDetail\n| sort by TimeGenerated desc\n| take 30",
         "size": 0,
         "title": "Step 3f: Raw DeviceDetail Sample (diagnose Unmanaged Device Risk readings)",
         "queryType": 0,
@@ -1179,7 +1179,7 @@
         "version": "KqlItem/1.0",
         "query": "union isfuzzy=true\n    AADNonInteractiveUserSignInLogs,\n    (datatable(TimeGenerated:datetime) [])\n| where TimeGenerated > ago(3d)\n| summarize RowCount = count(), LatestRecord = max(TimeGenerated)",
         "size": 0,
-        "title": "Step 3g: AADNonInteractiveUserSignInLogs Status (silent/WAM sign-ins — often where managed-device activity actually lands)",
+        "title": "Step 3g: AADNonInteractiveUserSignInLogs Status (silent/WAM sign-ins, often where managed-device activity actually lands)",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
         "visualization": "table"
@@ -1195,7 +1195,7 @@
     {
       "type": 1,
       "content": {
-        "json": "> **Reading Step 3f/3g:** `SigninLogs` only captures *interactive* sign-ins. A managed Windows device authenticating via Windows Hello/WAM does a lot of its Entra traffic as silent, non-interactive token refreshes — those land in **`AADNonInteractiveUserSignInLogs`** instead, a separate table the Unmanaged Device Risk tab now also queries. If Step 3g shows `RowCount = 0`, that table isn't being ingested in this workspace at all (it needs its own Entra ID diagnostic setting), and the tab's picture will stay skewed toward browser/interactive sign-ins — worth enabling if you want managed-device activity to show up here.\n>\n> If, even after adding that table, `DeviceDetail` is still missing `trustType`/`isManaged`/`isCompliant` entirely for a user you *know* signs in from an MDE-managed machine — that's a genuine tenant condition, not a workbook bug: those fields only populate when the device presents an Entra ID token (Hybrid Azure AD join, Azure AD join, or Azure AD registration) at sign-in time. **MDE onboarding and Entra device registration are independent** — a device can have the Defender sensor installed without ever being registered as a trusted device in Entra ID (common when devices are on-prem domain-joined and onboarded to MDE via GPO/SCCM rather than through Entra hybrid join). If that's the case, the tab's 0%-managed reading is correct, and the registration gap itself is the residual-risk finding — worth reporting on its own, separate from device-level BYOD risk."
+        "json": "> **Reading Step 3f/3g:** `SigninLogs` only captures *interactive* sign-ins. A managed Windows device authenticating via Windows Hello/WAM does a lot of its Entra traffic as silent, non-interactive token refreshes, and those land in **`AADNonInteractiveUserSignInLogs`** instead, a separate table the Unmanaged Device Risk tab now also queries. If Step 3g shows `RowCount = 0`, that table isn't being ingested in this workspace at all (it needs its own Entra ID diagnostic setting), so the tab's picture stays limited to whatever `SigninLogs` alone shows.\n>\n> If Step 3f's `DeviceDetail` values are entirely macOS + Safari/Firefox with `isManaged:false`, `isCompliant:false`, and no `trustType`, that's expected and not a workbook bug: plain browser sign-ins on macOS essentially never carry Entra device-trust claims, managed or not, unless Platform SSO / an SSO browser extension is configured. Cross-check against the MDE-based tile and the Known Devices tab instead of treating this table as the sole managed-device signal for a macOS-heavy population.\n>\n> Separately: **MDE onboarding and Entra device registration are independent.** A device can have the Defender sensor installed without ever being registered as a trusted device in Entra ID (common when devices are on-prem domain-joined and onboarded to MDE via GPO/SCCM rather than through Entra hybrid join). If that's what's happening here, the registration gap itself is a residual-risk finding worth reporting on its own, separate from device-level BYOD risk."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
@@ -1207,7 +1207,7 @@
     {
       "type": 1,
       "content": {
-        "json": "---\n### Notes\n\n**Why the Anthropic domain list is hardcoded, not watchlist-driven:** this is the primary compliance control. A shared, general-purpose domain watchlist (like `AI-App-Domains` used elsewhere in this repo) can be edited for unrelated reasons by someone unaware of the compliance implication. The Anthropic domain list here is fixed in both the workbook and the analytics rule so the two can never drift out of sync with each other.\n\n**Join case-sensitivity:** all UPN joins normalize both sides with `tolower()` before joining — KQL `join` is case-sensitive by default, and Defender/watchlist UPN casing isn't guaranteed to match.\n\n**`DeviceNetworkEvents` uses `Timestamp`**, not `TimeGenerated`, in this tenant's schema (Defender Advanced Hunting naming) — confirmed against a working hunting query before this workbook was built.\n\n**Compliance exceptions** are tracked as a Sentinel incident label (`ComplianceException`) rather than a separate table — apply it when closing an incident that was reviewed and accepted as expected/approved activity."
+        "json": "---\n### Notes\n\n**Why the Anthropic domain list is hardcoded, not watchlist-driven:** this is the primary compliance control. A shared, general-purpose domain watchlist (like `AI-App-Domains` used elsewhere in this repo) can be edited for unrelated reasons by someone unaware of the compliance implication. The Anthropic domain list here is fixed in both the workbook and the analytics rule so the two can never drift out of sync with each other.\n\n**Join case-sensitivity:** all UPN joins normalize both sides with `tolower()` before joining. KQL `join` is case-sensitive by default, and Defender/watchlist UPN casing isn't guaranteed to match.\n\n**`DeviceNetworkEvents` uses `Timestamp`**, not `TimeGenerated`, in this tenant's schema (Defender Advanced Hunting naming), confirmed against a working hunting query before this workbook was built.\n\n**Compliance exceptions** are tracked as a Sentinel incident label (`ComplianceException`) rather than a separate table; apply it when closing an incident that was reviewed and accepted as expected/approved activity."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",

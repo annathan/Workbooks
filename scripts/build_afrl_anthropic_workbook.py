@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Builds AFRL-Anthropic-Compliance.json — a standalone Sentinel workbook for
+"""Builds AFRL-Anthropic-Compliance.json: a standalone Sentinel workbook for
 AFRL-funded project personnel monitoring (Anthropic access compliance control).
 
 Companion artifacts:
-  analytics-rules/afrl-anthropic-access-detection.json — the alert rule this
+  analytics-rules/afrl-anthropic-access-detection.json: the alert rule this
     workbook's Detection Investigations tab reports on.
-  watchlists/DoD-Anthropic-Monitoring.csv — watchlist schema/import template.
+  watchlists/DoD-Anthropic-Monitoring.csv: watchlist schema/import template.
 """
 import json
 
@@ -166,12 +166,12 @@ items.append({
     "type": 1,
     "content": {
         "json": (
-            "# AFRL / DoD Personnel — Anthropic Access Compliance Monitoring\n"
-            "**Classification: TLP:AMBER — Internal use only**\n\n"
+            "# AFRL / DoD Personnel: Anthropic Access Compliance Monitoring\n"
+            "**Classification: TLP:AMBER (Internal use only)**\n\n"
             "> DTS continuously monitors personnel on AFRL-funded projects for access to "
             "Anthropic-hosted AI services, using Microsoft Sentinel and Microsoft Defender "
             "telemetry, as an auditable compliance control. This workbook is the reporting and "
-            "investigation view for that control — start on **Executive Summary** for the current "
+            "investigation view for that control. Start on **Executive Summary** for the current "
             "compliance posture, or jump to a specific tab above.\n>\n"
             "> First time here? See the **Setup & Validation** tab for data source requirements "
             "and how monitored personnel are maintained."
@@ -320,8 +320,8 @@ items.append(kql_item(
     "    | summarize coalesce(dcount(IncidentNumber), 0));\n"
     "print ['Compliance Status'] = case(\n"
     "    Detections == 0, \"🟢 Green\",\n"
-    "    OpenInvestigations > 0, \"🟠 Amber — Investigating\",\n"
-    "    \"🔴 Red — Unresolved Detection\")",
+    "    OpenInvestigations > 0, \"🟠 Amber: Investigating\",\n"
+    "    \"🔴 Red: Unresolved Detection\")",
     "tiles", size=4, tile_col="Compliance Status", tile_palette="green",
     tab="executive", custom_width=25,
 ))
@@ -329,7 +329,7 @@ items.append(kql_item(
 items.append(md_item(
     "exec-narrative",
     "### Monthly Report Narrative (template)\n"
-    "> Copy-paste starting point — fill in the bracketed values from the tiles above "
+    "> Copy-paste starting point: fill in the bracketed values from the tiles above "
     "(Monitored Personnel, Anthropic Detections, Compliance Status) and today's date. Not "
     "auto-generated, so it can't render oddly or drift from what KQL happens to compute; it's a "
     "template, not a substitute for analyst review.\n\n"
@@ -385,11 +385,11 @@ items.append(kql_item(
 items.append(md_item(
     "exec-residual-heading",
     "### Residual Risks\n"
-    "- **Unmanaged personal devices** — activity from BYOD cannot be fully monitored; see the "
+    "- **Unmanaged personal devices**: activity from BYOD cannot be fully monitored; see the "
     "**Unmanaged Device Risk** tab for the current unmanaged-activity percentage.\n"
-    "- **Non-University networks** — off-network access (personal ISP, mobile data) bypasses "
+    "- **Non-University networks**: off-network access (personal ISP, mobile data) bypasses "
     "on-prem network telemetry entirely; only endpoint-based signals (MDE) still see it.\n"
-    "- **Embedded Anthropic services within third-party products** — a third-party product that "
+    "- **Embedded Anthropic services within third-party products**: a third-party product that "
     "calls the Anthropic API server-side (not from the monitored user's device) will not appear "
     "in this monitoring and is a known blind spot.",
     "executive",
@@ -469,7 +469,7 @@ items.append(kql_item(
 
 items.append(kql_item(
     "anthropic-detail-grid",
-    "Anthropic Access — Detail",
+    "Anthropic Access: Detail",
     ANTHROPIC_DETAIL_QUERY,
     "table", tab="anthropic",
 ))
@@ -479,7 +479,7 @@ items.append(md_item(
     "aiusage-heading",
     "## AI Usage Context\n"
     "> If a monitored individual states they used Claude, this tab shows what they actually "
-    "accessed — covering OpenAI/ChatGPT, Microsoft Copilot, Google Gemini, Perplexity, Mistral, "
+    "accessed, covering OpenAI/ChatGPT, Microsoft Copilot, Google Gemini, Perplexity, Mistral, "
     "Poe and Hugging Face. The platform list is extensible on request.",
     "aiusage",
 ))
@@ -503,7 +503,7 @@ items.append(kql_item(
 
 items.append(kql_item(
     "aiusage-trend",
-    "AI Platform Usage — Trend",
+    "AI Platform Usage Trend",
     AIUSAGE_BASE +
     "| summarize Events = count() by bin(Timestamp, 1d), Platform\n"
     "| sort by Timestamp asc",
@@ -527,7 +527,7 @@ items.append(md_item(
     "> **Outcome this answers:** can DTS demonstrate that all project personnel were included in "
     "monitoring? Sourced entirely from the `DoD-Anthropic-Monitoring` watchlist (`UserUPN`, "
     "`Name`, `Project`). This deployment's watchlist doesn't track a `Status`/`DateAdded`/"
-    "`DateRemoved` history, so this tab shows current headcount and roster only — it can't show "
+    "`DateRemoved` history, so this tab shows current headcount and roster only; it can't show "
     "who was added or removed and when. Add those columns to the watchlist later if you want that "
     "history back; the workbook doesn't require it.",
     "coverage",
@@ -638,7 +638,7 @@ items.append(md_item(
     "## Known Devices\n"
     "> **Outcome this answers:** are researchers using University-managed devices? "
     "`ManagedStatus` reflects whether the last-seen device is onboarded to Microsoft Defender "
-    "for Endpoint — presence there is a floor for \"managed\", not a guarantee of full Intune "
+    "for Endpoint; presence there is a floor for \"managed\", not a guarantee of full Intune "
     "compliance (see **Unmanaged Device Risk** for the Entra sign-in compliance signal).",
     "devices",
 ))
@@ -674,15 +674,21 @@ items.append(md_item(
     "risk-heading",
     "## Unmanaged Device Risk\n"
     "> **Outcome this answers:** activity from unmanaged devices cannot be fully monitored and "
-    "remains a residual risk — this tab quantifies how much of monitored activity that is. "
+    "remains a residual risk, and this tab quantifies how much of monitored activity that is. "
     "`SigninLogs` requires Entra ID P1/P2; if absent, the Entra panels below will be empty and "
     "the MDE-based tile is the fallback signal.\n>\n"
     "> **Why device *name* and `TrustType`, not `isManaged`/`isCompliant`:** those two fields "
-    "only populate when a device-based Conditional Access policy is actively enforcing them — "
-    "without that, every sign-in reads `false`/empty regardless of the device's real status, "
+    "only populate when a device-based Conditional Access policy is actively enforcing them. "
+    "Without that, every sign-in reads `false`/empty regardless of the device's real status, "
     "which silently understates risk rather than overstates it. `TrustType` (Azure AD joined / "
     "Hybrid Azure AD joined / registered / blank) is populated far more reliably and is what the "
-    "table below and the second tile use instead.",
+    "table below and the second tile use instead.\n>\n"
+    "> **Read the Entra-based tiles alongside the MDE-based one, not instead of it.** macOS "
+    "browsers (Safari, Firefox) essentially never present device-trust claims during sign-in, "
+    "even from a fully Intune-managed Mac, unless Platform SSO / an SSO browser extension is "
+    "specifically configured. A population that signs in mostly via macOS browsers can show "
+    "0% Entra-trusted while still being genuinely MDE-managed at the endpoint level. See Setup → "
+    "Step 3f/3g for how to confirm which case you're in.",
     "risk",
 ))
 
@@ -787,21 +793,21 @@ items.append(md_item(
     "### Step 1: Create the watchlist\n"
     "Sentinel → Watchlists → **+ New** → name it exactly `DoD-Anthropic-Monitoring`. Minimum "
     "columns: `UserUPN, Name, Project` (see `watchlists/DoD-Anthropic-Monitoring.csv`). SearchKey "
-    "can be set to whatever you like — the workbook always resolves the real `UserUPN` column "
+    "can be set to whatever you like; the workbook always resolves the real `UserUPN` column "
     "directly and only falls back to SearchKey if that column is missing.\n\n"
     "> Optional: add `Status`, `DateAdded`, `DateRemoved` columns if you want the "
     "**Monitored User Coverage** tab to track *when* staff were added/removed, not just who's "
-    "currently monitored. The workbook shipped here doesn't require them — this deployment's "
+    "currently monitored. The workbook shipped here doesn't require them; this deployment's "
     "watchlist doesn't have them.\n\n"
     "### Step 2: Analytics rule\n"
     "The Detection Investigations tab and the Compliance Status/Investigations tiles filter "
     f"`SecurityIncident` on `Title == \"{RULE_TITLE}\"`. If your Sentinel analytics rule's "
     "display name (or `alertDisplayNameFormat` override, if it has one) is anything other than "
     f"exactly `{RULE_TITLE}`, update `RULE_TITLE` in "
-    "`scripts/build_afrl_anthropic_workbook.py` and regenerate — otherwise those panels will "
+    "`scripts/build_afrl_anthropic_workbook.py` and regenerate, otherwise those panels will "
     "silently show zero regardless of actual activity. `analytics-rules/"
     "afrl-anthropic-access-detection.json` is kept in the repo as a reference/backup ARM "
-    "template (same title, same entity mappings) — not required if you already have a rule "
+    "template (same title, same entity mappings), not required if you already have a rule "
     "deployed.\n\n"
     "### Step 3: Validate data sources below",
     "setup",
@@ -828,7 +834,7 @@ items.append(kql_item(
 
 items.append(kql_item(
     "setup-incident-status",
-    "Step 3c: SecurityIncident — Rule Match Check",
+    "Step 3c: SecurityIncident Rule Match Check",
     "union isfuzzy=true SecurityIncident\n"
     f'| where Title == "{RULE_TITLE}"\n'
     "| summarize TotalIncidents = dcount(IncidentNumber), LatestRecord = max(TimeGenerated)",
@@ -847,7 +853,7 @@ items.append(kql_item(
 
 items.append(kql_item(
     "setup-signinlogs-status",
-    "Step 3e: SigninLogs Status (Unmanaged Device Risk tab — requires Entra ID P1/P2)",
+    "Step 3e: SigninLogs Status (Unmanaged Device Risk tab, requires Entra ID P1/P2)",
     SIGNINLOGS_UNION +
     "| where TimeGenerated > ago(3d)\n"
     "| summarize RowCount = count(), LatestRecord = max(TimeGenerated)",
@@ -858,11 +864,11 @@ items.append(kql_item(
     "setup-devicedetail-sample",
     "Step 3f: Raw DeviceDetail Sample (diagnose Unmanaged Device Risk readings)",
     PROJECT_USERS_ACTIVE +
-    "union isfuzzy=true\n"
-    "    (SigninLogs | extend SourceTable = \"SigninLogs (interactive)\"),\n"
-    "    (AADNonInteractiveUserSignInLogs | extend SourceTable = \"AADNonInteractiveUserSignInLogs\"),\n"
+    "union withsource=SourceTable isfuzzy=true\n"
+    "    SigninLogs,\n"
+    "    AADNonInteractiveUserSignInLogs,\n"
     "    (datatable(TimeGenerated:datetime, UserPrincipalName:string, DeviceDetail:dynamic,\n"
-    "               AppDisplayName:string, SourceTable:string) [])\n"
+    "               AppDisplayName:string) [])\n"
     "| where TimeGenerated > ago(14d)\n"
     "| extend UserUPN = tolower(UserPrincipalName)\n"
     "| join kind=inner ProjectUsers on UserUPN\n"
@@ -874,7 +880,7 @@ items.append(kql_item(
 
 items.append(kql_item(
     "setup-noninteractive-status",
-    "Step 3g: AADNonInteractiveUserSignInLogs Status (silent/WAM sign-ins — often where managed-device activity actually lands)",
+    "Step 3g: AADNonInteractiveUserSignInLogs Status (silent/WAM sign-ins, often where managed-device activity actually lands)",
     "union isfuzzy=true\n"
     "    AADNonInteractiveUserSignInLogs,\n"
     "    (datatable(TimeGenerated:datetime) [])\n"
@@ -887,22 +893,22 @@ items.append(md_item(
     "setup-devicedetail-note",
     "> **Reading Step 3f/3g:** `SigninLogs` only captures *interactive* sign-ins. A managed "
     "Windows device authenticating via Windows Hello/WAM does a lot of its Entra traffic as "
-    "silent, non-interactive token refreshes — those land in **`AADNonInteractiveUserSignInLogs`** "
-    "instead, a separate table the Unmanaged Device Risk tab now also queries. If Step 3g shows "
-    "`RowCount = 0`, that table isn't being ingested in this workspace at all (it needs its own "
-    "Entra ID diagnostic setting), and the tab's picture will stay skewed toward "
-    "browser/interactive sign-ins — worth enabling if you want managed-device activity to show up "
-    "here.\n>\n"
-    "> If, even after adding that table, `DeviceDetail` is still missing `trustType`/`isManaged`/"
-    "`isCompliant` entirely for a user you *know* signs in from an MDE-managed machine — that's a "
-    "genuine tenant condition, not a workbook bug: those fields only populate when the device "
-    "presents an Entra ID token (Hybrid Azure AD join, Azure AD join, or Azure AD registration) at "
-    "sign-in time. **MDE onboarding and Entra device registration are independent** — a device can "
+    "silent, non-interactive token refreshes, and those land in "
+    "**`AADNonInteractiveUserSignInLogs`** instead, a separate table the Unmanaged Device Risk tab "
+    "now also queries. If Step 3g shows `RowCount = 0`, that table isn't being ingested in this "
+    "workspace at all (it needs its own Entra ID diagnostic setting), so the tab's picture stays "
+    "limited to whatever `SigninLogs` alone shows.\n>\n"
+    "> If Step 3f's `DeviceDetail` values are entirely macOS + Safari/Firefox with "
+    "`isManaged:false`, `isCompliant:false`, and no `trustType`, that's expected and not a "
+    "workbook bug: plain browser sign-ins on macOS essentially never carry Entra device-trust "
+    "claims, managed or not, unless Platform SSO / an SSO browser extension is configured. Cross-"
+    "check against the MDE-based tile and the Known Devices tab instead of treating this table as "
+    "the sole managed-device signal for a macOS-heavy population.\n>\n"
+    "> Separately: **MDE onboarding and Entra device registration are independent.** A device can "
     "have the Defender sensor installed without ever being registered as a trusted device in Entra "
     "ID (common when devices are on-prem domain-joined and onboarded to MDE via GPO/SCCM rather "
-    "than through Entra hybrid join). If that's the case, the tab's 0%-managed reading is correct, "
-    "and the registration gap itself is the residual-risk finding — worth reporting on its own, "
-    "separate from device-level BYOD risk.",
+    "than through Entra hybrid join). If that's what's happening here, the registration gap itself "
+    "is a residual-risk finding worth reporting on its own, separate from device-level BYOD risk.",
     "setup",
 ))
 
@@ -915,13 +921,13 @@ items.append(md_item(
     "compliance implication. The Anthropic domain list here is fixed in both the workbook and "
     "the analytics rule so the two can never drift out of sync with each other.\n\n"
     "**Join case-sensitivity:** all UPN joins normalize both sides with `tolower()` before "
-    "joining — KQL `join` is case-sensitive by default, and Defender/watchlist UPN casing isn't "
+    "joining. KQL `join` is case-sensitive by default, and Defender/watchlist UPN casing isn't "
     "guaranteed to match.\n\n"
     "**`DeviceNetworkEvents` uses `Timestamp`**, not `TimeGenerated`, in this tenant's schema "
-    "(Defender Advanced Hunting naming) — confirmed against a working hunting query before this "
+    "(Defender Advanced Hunting naming), confirmed against a working hunting query before this "
     "workbook was built.\n\n"
     "**Compliance exceptions** are tracked as a Sentinel incident label (`ComplianceException`) "
-    "rather than a separate table — apply it when closing an incident that was reviewed and "
+    "rather than a separate table; apply it when closing an incident that was reviewed and "
     "accepted as expected/approved activity.",
     "setup",
 ))
