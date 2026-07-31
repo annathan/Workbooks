@@ -983,6 +983,92 @@
       "customWidth": "50"
     },
     {
+      "type": 1,
+      "content": {
+        "json": "### Reconciling MDE-Known Devices with Entra Sign-in Trust\n> These two signals measure different things and can legitimately disagree for the same person: **MDE-Known Device** is a fact about network/endpoint telemetry (does this person's last-seen device have the Defender for Endpoint sensor installed and reporting?). **Entra Device Trust** is a fact about the sign-in session (did the browser present an Entra device-trust token when authenticating?). A person can have a fully MDE-managed Windows machine and still show no Entra device trust, because their Microsoft 365 sign-ins happen from a separate, unmanaged device, or because the sign-in method they used (plain browser login, no Platform SSO / Enterprise SSO extension) never presents a device token regardless of the underlying device's real management status. Read this table per row, not the two tiles above in isolation."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "risk"
+      },
+      "name": "risk-reconciliation-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nlet MDEActivity =\n    union isfuzzy=true\n        DeviceNetworkEvents,\n        (datatable(Timestamp:datetime, RemoteUrl:string, InitiatingProcessAccountUpn:string,\n                   DeviceName:string) [])\n    | where Timestamp {TimeRange}\n    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n    | where isnotempty(UserUPN)\n    | join kind=inner ProjectUsers on UserUPN\n    | summarize (LastSeen, LastSeenDevice) = arg_max(Timestamp, DeviceName) by UserUPN;\nlet MDEManagedStatus =\n    union isfuzzy=true\n        DeviceInfo,\n        (datatable(TimeGenerated:datetime, DeviceName:string, OnboardingStatus:string) [])\n    | where TimeGenerated > ago(30d)\n    | summarize arg_max(TimeGenerated, OnboardingStatus) by DeviceName;\nlet MDEKnown =\n    MDEActivity\n    | join kind=leftouter MDEManagedStatus on $left.LastSeenDevice == $right.DeviceName\n    | project UserUPN, MDEStatus = iff(isempty(OnboardingStatus), \"Unknown\", OnboardingStatus);\nlet EntraActivity =\n    union isfuzzy=true\n        SigninLogs,\n        (datatable(TimeGenerated:datetime, UserPrincipalName:string, DeviceDetail:dynamic,\n                   AppDisplayName:string) [])\n    | where TimeGenerated {TimeRange}\n    | extend UserUPN = tolower(UserPrincipalName)\n    | join kind=inner ProjectUsers on UserUPN\n    | extend TrustType = tostring(DeviceDetail.trustType)\n    | summarize\n        TotalSignIns   = count(),\n        TrustedSignIns = countif(TrustType in (\"Azure AD joined\", \"Hybrid Azure AD joined\", \"ServerAD joined\"))\n      by UserUPN;\nProjectUsers\n| join kind=leftouter MDEKnown on UserUPN\n| join kind=leftouter EntraActivity on UserUPN\n| project\n    UserUPN, Name, Project,\n    ['MDE-Known Device'] = iff(isempty(MDEStatus), \"No Network Activity Seen\", MDEStatus),\n    ['Entra Device Trust'] = case(\n        isnull(TotalSignIns), \"No Sign-ins Seen\",\n        TrustedSignIns > 0, \"Yes\",\n        \"No\"),\n    ['Entra Sign-ins (Trusted / Total)'] = iff(isnull(TotalSignIns), \"-\",\n        strcat(tostring(coalesce(TrustedSignIns, 0)), \" / \", tostring(TotalSignIns)))\n| sort by Name asc",
+        "size": 0,
+        "title": "MDE-Known Device vs. Entra Device Trust, by User",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "MDE-Known Device",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Onboarded",
+                    "representation": "green",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "No Network Activity Seen",
+                    "representation": "redBright",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "orange",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "Entra Device Trust",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Yes",
+                    "representation": "green",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "No",
+                    "representation": "redBright",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "orange",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "risk"
+      },
+      "name": "risk-reconciliation-table"
+    },
+    {
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",

@@ -736,6 +736,90 @@ items.append(kql_item(
     tab="risk", custom_width=50,
 ))
 
+items.append(md_item(
+    "risk-reconciliation-heading",
+    "### Reconciling MDE-Known Devices with Entra Sign-in Trust\n"
+    "> These two signals measure different things and can legitimately disagree for the same "
+    "person: **MDE-Known Device** is a fact about network/endpoint telemetry (does this person's "
+    "last-seen device have the Defender for Endpoint sensor installed and reporting?). "
+    "**Entra Device Trust** is a fact about the sign-in session (did the browser present an Entra "
+    "device-trust token when authenticating?). A person can have a fully MDE-managed Windows "
+    "machine and still show no Entra device trust, because their Microsoft 365 sign-ins happen "
+    "from a separate, unmanaged device, or because the sign-in method they used (plain browser "
+    "login, no Platform SSO / Enterprise SSO extension) never presents a device token regardless "
+    "of the underlying device's real management status. Read this table per row, not the two "
+    "tiles above in isolation.",
+    "risk",
+))
+
+items.append(kql_item(
+    "risk-reconciliation-table",
+    "MDE-Known Device vs. Entra Device Trust, by User",
+    PROJECT_USERS_ACTIVE +
+    "let MDEActivity =\n    " + NETWORK_UNION.replace("\n", "\n    ").rstrip() + "\n"
+    "    | where Timestamp {TimeRange}\n"
+    "    | extend UserUPN = tolower(InitiatingProcessAccountUpn)\n"
+    "    | where isnotempty(UserUPN)\n"
+    "    | join kind=inner ProjectUsers on UserUPN\n"
+    "    | summarize (LastSeen, LastSeenDevice) = arg_max(Timestamp, DeviceName) by UserUPN;\n"
+    "let MDEManagedStatus =\n    " + DEVICEINFO_UNION.replace("\n", "\n    ").rstrip() + "\n"
+    "    | where TimeGenerated > ago(30d)\n"
+    "    | summarize arg_max(TimeGenerated, OnboardingStatus) by DeviceName;\n"
+    "let MDEKnown =\n"
+    "    MDEActivity\n"
+    "    | join kind=leftouter MDEManagedStatus on $left.LastSeenDevice == $right.DeviceName\n"
+    "    | project UserUPN, MDEStatus = iff(isempty(OnboardingStatus), \"Unknown\", OnboardingStatus);\n"
+    "let EntraActivity =\n    " + SIGNINLOGS_UNION.replace("\n", "\n    ").rstrip() + "\n"
+    "    | where TimeGenerated {TimeRange}\n"
+    "    | extend UserUPN = tolower(UserPrincipalName)\n"
+    "    | join kind=inner ProjectUsers on UserUPN\n"
+    "    | extend TrustType = tostring(DeviceDetail.trustType)\n"
+    "    | summarize\n"
+    "        TotalSignIns   = count(),\n"
+    "        TrustedSignIns = countif(TrustType in (\"Azure AD joined\", \"Hybrid Azure AD joined\", \"ServerAD joined\"))\n"
+    "      by UserUPN;\n"
+    "ProjectUsers\n"
+    "| join kind=leftouter MDEKnown on UserUPN\n"
+    "| join kind=leftouter EntraActivity on UserUPN\n"
+    "| project\n"
+    "    UserUPN, Name, Project,\n"
+    "    ['MDE-Known Device'] = iff(isempty(MDEStatus), \"No Network Activity Seen\", MDEStatus),\n"
+    "    ['Entra Device Trust'] = case(\n"
+    "        isnull(TotalSignIns), \"No Sign-ins Seen\",\n"
+    "        TrustedSignIns > 0, \"Yes\",\n"
+    "        \"No\"),\n"
+    "    ['Entra Sign-ins (Trusted / Total)'] = iff(isnull(TotalSignIns), \"-\",\n"
+    "        strcat(tostring(coalesce(TrustedSignIns, 0)), \" / \", tostring(TotalSignIns)))\n"
+    "| sort by Name asc",
+    "table", tab="risk",
+    grid_formatters=[
+        {
+            "columnMatch": "MDE-Known Device",
+            "formatter": 18,
+            "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                    {"operator": "==", "thresholdValue": "Onboarded", "representation": "green", "text": "{0}"},
+                    {"operator": "==", "thresholdValue": "No Network Activity Seen", "representation": "redBright", "text": "{0}"},
+                    {"operator": "Default", "representation": "orange", "text": "{0}"},
+                ],
+            },
+        },
+        {
+            "columnMatch": "Entra Device Trust",
+            "formatter": 18,
+            "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                    {"operator": "==", "thresholdValue": "Yes", "representation": "green", "text": "{0}"},
+                    {"operator": "==", "thresholdValue": "No", "representation": "redBright", "text": "{0}"},
+                    {"operator": "Default", "representation": "orange", "text": "{0}"},
+                ],
+            },
+        },
+    ],
+))
+
 items.append(kql_item(
     "risk-signin-table",
     "Entra Sign-ins by Device (Monitored Users)",
