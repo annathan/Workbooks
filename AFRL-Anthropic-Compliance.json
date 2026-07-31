@@ -4,7 +4,7 @@
     {
       "type": 1,
       "content": {
-        "json": "# AFRL / DoD Personnel — Anthropic Access Compliance Monitoring\n**Classification: TLP:AMBER — Internal use only**\n\n> DTS monitors personnel associated with AFRL-funded projects for access to Anthropic-hosted services, using Microsoft Sentinel and Microsoft Defender telemetry. This workbook is the audit-facing view for that control; the underlying detection is `analytics-rules/afrl-anthropic-access-detection.json`, and monitored personnel are maintained in the Sentinel watchlist **`DoD-Anthropic-Monitoring`** (see `watchlists/DoD-Anthropic-Monitoring.csv` for the import template).\n>\n> **First-time setup:** run the queries on the **Setup & Validation** tab to confirm the watchlist and required tables are populated before relying on this workbook."
+        "json": "# AFRL / DoD Personnel — Anthropic Access Compliance Monitoring\n**Classification: TLP:AMBER — Internal use only**\n\n> DTS continuously monitors personnel on AFRL-funded projects for access to Anthropic-hosted AI services, using Microsoft Sentinel and Microsoft Defender telemetry, as an auditable compliance control. This workbook is the reporting and investigation view for that control — start on **Executive Summary** for the current compliance posture, or jump to a specific tab above.\n>\n> First time here? See the **Setup & Validation** tab for data source requirements and how monitored personnel are maintained."
       },
       "name": "header-text"
     },
@@ -553,7 +553,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## AI Usage Context\n> If a monitored individual states they used Claude, this tab shows what they actually accessed. Covers OpenAI/ChatGPT, Microsoft Copilot, Google Gemini, Perplexity, Mistral, Poe and Hugging Face. Edit the `AIPlatforms` list in the generator script to add more."
+        "json": "## AI Usage Context\n> If a monitored individual states they used Claude, this tab shows what they actually accessed — covering OpenAI/ChatGPT, Microsoft Copilot, Google Gemini, Perplexity, Mistral, Poe and Hugging Face. The platform list is extensible on request."
       },
       "conditionalVisibility": {
         "parameterName": "selectedTab",
