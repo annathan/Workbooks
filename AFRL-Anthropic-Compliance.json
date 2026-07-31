@@ -1156,6 +1156,36 @@
       "customWidth": "50"
     },
     {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProjectUsers =\n    _GetWatchlist('DoD-Anthropic-Monitoring')\n    | project\n        UserUPN = tolower(trim(' ', column_ifexists('UserUPN', SearchKey))),\n        Name    = column_ifexists('Name', ''),\n        Project = column_ifexists('Project', ''),\n        Status  = column_ifexists('Status', 'Active')\n    | where isnotempty(UserUPN) and Status =~ \"Active\";\nSigninLogs\n| where TimeGenerated > ago(14d)\n| extend UserUPN = tolower(UserPrincipalName)\n| join kind=inner ProjectUsers on UserUPN\n| project TimeGenerated, UserUPN, AppDisplayName, ClientAppUsed, IsInteractive, DeviceDetail\n| sort by TimeGenerated desc\n| take 25",
+        "size": 0,
+        "title": "Step 3f: Raw DeviceDetail Sample (diagnose Unmanaged Device Risk readings)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-devicedetail-sample"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "> **Reading Step 3f:** expand a `DeviceDetail` cell. If it's `{}` or missing `trustType`/`isManaged`/`isCompliant` entirely across every row — even for a user you know signs in from an MDE-managed machine — that's a genuine tenant condition, not a workbook bug: those fields only populate when the device presents an Entra ID token (Hybrid Azure AD join, Azure AD join, or Azure AD registration) at sign-in time. **MDE onboarding and Entra device registration are independent** — a device can have the Defender sensor installed without ever being registered as a trusted device in Entra ID (common when devices are on-prem domain-joined and onboarded to MDE via GPO/SCCM rather than through Entra hybrid join). If that's what Step 3f shows, the Unmanaged Device Risk tab reading 0% managed is correct, and the real finding is the registration gap itself — worth reporting as its own residual risk, separate from the device-level BYOD risk. Compare `ClientAppUsed`/`IsInteractive` too: browser or legacy-auth sign-ins often carry no device claims even from a fully managed machine, which would explain a mix of populated and empty `DeviceDetail` for the same user."
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "setup"
+      },
+      "name": "setup-devicedetail-note"
+    },
+    {
       "type": 1,
       "content": {
         "json": "---\n### Notes\n\n**Why the Anthropic domain list is hardcoded, not watchlist-driven:** this is the primary compliance control. A shared, general-purpose domain watchlist (like `AI-App-Domains` used elsewhere in this repo) can be edited for unrelated reasons by someone unaware of the compliance implication. The Anthropic domain list here is fixed in both the workbook and the analytics rule so the two can never drift out of sync with each other.\n\n**Join case-sensitivity:** all UPN joins normalize both sides with `tolower()` before joining — KQL `join` is case-sensitive by default, and Defender/watchlist UPN casing isn't guaranteed to match.\n\n**`DeviceNetworkEvents` uses `Timestamp`**, not `TimeGenerated`, in this tenant's schema (Defender Advanced Hunting naming) — confirmed against a working hunting query before this workbook was built.\n\n**Compliance exceptions** are tracked as a Sentinel incident label (`ComplianceException`) rather than a separate table — apply it when closing an incident that was reviewed and accepted as expected/approved activity."

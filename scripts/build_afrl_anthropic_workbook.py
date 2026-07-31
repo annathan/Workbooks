@@ -848,6 +848,38 @@ items.append(kql_item(
     "table", tab="setup", custom_width=50,
 ))
 
+items.append(kql_item(
+    "setup-devicedetail-sample",
+    "Step 3f: Raw DeviceDetail Sample (diagnose Unmanaged Device Risk readings)",
+    PROJECT_USERS_ACTIVE +
+    "SigninLogs\n"
+    "| where TimeGenerated > ago(14d)\n"
+    "| extend UserUPN = tolower(UserPrincipalName)\n"
+    "| join kind=inner ProjectUsers on UserUPN\n"
+    "| project TimeGenerated, UserUPN, AppDisplayName, ClientAppUsed, IsInteractive, DeviceDetail\n"
+    "| sort by TimeGenerated desc\n"
+    "| take 25",
+    "table", tab="setup",
+))
+
+items.append(md_item(
+    "setup-devicedetail-note",
+    "> **Reading Step 3f:** expand a `DeviceDetail` cell. If it's `{}` or missing `trustType`/"
+    "`isManaged`/`isCompliant` entirely across every row — even for a user you know signs in from "
+    "an MDE-managed machine — that's a genuine tenant condition, not a workbook bug: those fields "
+    "only populate when the device presents an Entra ID token (Hybrid Azure AD join, Azure AD "
+    "join, or Azure AD registration) at sign-in time. **MDE onboarding and Entra device "
+    "registration are independent** — a device can have the Defender sensor installed without "
+    "ever being registered as a trusted device in Entra ID (common when devices are on-prem "
+    "domain-joined and onboarded to MDE via GPO/SCCM rather than through Entra hybrid join). If "
+    "that's what Step 3f shows, the Unmanaged Device Risk tab reading 0% managed is correct, and "
+    "the real finding is the registration gap itself — worth reporting as its own residual risk, "
+    "separate from the device-level BYOD risk. Compare `ClientAppUsed`/`IsInteractive` too: "
+    "browser or legacy-auth sign-ins often carry no device claims even from a fully managed "
+    "machine, which would explain a mix of populated and empty `DeviceDetail` for the same user.",
+    "setup",
+))
+
 items.append(md_item(
     "setup-notes",
     "---\n### Notes\n\n"
