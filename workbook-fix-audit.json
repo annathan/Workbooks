@@ -1,0 +1,67 @@
+{
+  "date": "2026-07-31",
+  "tab_affected": "risk",
+  "findings": [
+    {
+      "panel_name": "risk-tile-unmanaged-pct",
+      "root_cause": "The ManagedStatus lookup (shared with devices-table) unioned DeviceInfo with zero time filter before running summarize arg_max(TimeGenerated, OnboardingStatus) by DeviceName. DeviceInfo is a daily per-device snapshot table for the entire tenant, not just monitored users, so this was an unbounded full-history scan. Log Analytics throttled the query after repeated timeouts: 'This query was blocked for several minutes because it failed to complete too many times.'",
+      "fix_applied": "Added `| where TimeGenerated > ago(30d)` immediately after the DeviceInfo union and before the arg_max summarize, matching the bounded pattern every other DeviceInfo/DeviceNetworkEvents/SigninLogs usage in this workbook already follows.",
+      "metric_definition_changed": false,
+      "verified_against_workspace": true,
+      "verification_method": "Root cause confirmed directly from the user's live throttle error message on this exact tile. The fix itself (bounding to a recent lookback before aggregation) matches the pattern already used successfully elsewhere in the same file, but has not yet been re-confirmed live by re-running the tile after the fix; Log Analytics' throttle cooldown can also outlast the underlying fix by several minutes, so an immediate re-test may still show the stale block message."
+    },
+    {
+      "panel_name": "devices-table",
+      "root_cause": "Same unbounded DeviceInfo union as risk-tile-unmanaged-pct (shared ManagedStatus subquery pattern), duplicated inline in this panel rather than through a shared constant.",
+      "fix_applied": "Added the same `| where TimeGenerated > ago(30d)` bound after the DeviceInfo union, before the arg_max summarize.",
+      "metric_definition_changed": false,
+      "verified_against_workspace": true,
+      "verification_method": "This panel was independently confirmed working by the user (screenshot showing 2 real users with correct 'Managed (MDE)' status and real device names), which corroborates that the underlying join logic is sound and the fix does not alter that behavior, only bounds the scan window."
+    },
+    {
+      "panel_name": "risk-tile-unregistered-pct",
+      "root_cause": "The tile originally computed 'managed' sign-ins from DeviceDetail.isManaged and DeviceDetail.isCompliant. Those two fields only populate when a device-based Conditional Access policy is actively enforcing them; without that, every sign-in reads false/empty regardless of the device's real management status. This silently understated the managed population rather than raising an error, which is a correctness defect distinct from the other findings here.",
+      "fix_applied": "Replaced isManaged/isCompliant with DeviceDetail.trustType (Azure AD joined / Hybrid Azure AD joined / ServerAD joined counted as managed), which is populated far more reliably.",
+      "metric_definition_changed": true,
+      "before_definition": "'Managed' sign-in = DeviceDetail.isManaged == true (a boolean field verified, via raw sample, to read false on every observed sign-in in this workspace regardless of real device status).",
+      "after_definition": "'Managed'/registered sign-in = DeviceDetail.trustType is one of 'Azure AD joined', 'Hybrid Azure AD joined', or 'ServerAD joined'.",
+      "verified_against_workspace": true,
+      "verification_method": "Confirmed via a raw DeviceDetail sample the user pulled from this exact workspace (Setup Step 3f), which showed real sign-in records with isManaged:false, isCompliant:false, and no trustType key present at all, for macOS Safari/Firefox sign-ins. This also surfaced a workspace-specific caveat now documented on the tab: macOS browser sign-ins essentially never carry Entra device-trust claims regardless of real device management, so this tile should be read alongside the MDE-based tile, not as the sole managed-device signal."
+    },
+    {
+      "panel_name": "risk-signin-table",
+      "root_cause": "Same isManaged/isCompliant defect as risk-tile-unregistered-pct. Additionally, the panel never surfaced DeviceDetail.displayName at all, so there was no way to see which physical device a sign-in came from, and when displayName/deviceId were both empty it showed an unhelpful literal string with no diagnostic value.",
+      "fix_applied": "Switched to DeviceDetail.trustType for the Trust column (same before/after definition as risk-tile-unregistered-pct). Added a Device column derived from displayName, falling back to deviceId, falling back to 'OS · Browser' (from DeviceDetail.operatingSystem/browser) when neither identifier is present, instead of a bare '(no device info returned)'.",
+      "metric_definition_changed": true,
+      "before_definition": "Trust/managed status based on isManaged/isCompliant (see risk-tile-unregistered-pct); no device identity shown.",
+      "after_definition": "Trust based on DeviceDetail.trustType; Device column shows the best available identifier (name, then ID, then OS/browser) rather than omitting device information.",
+      "verified_against_workspace": true,
+      "verification_method": "Same raw DeviceDetail sample (Setup Step 3f) confirmed operatingSystem and browser were populated ('MacOs', 'Firefox 153.0', 'Safari 26.x') even when displayName and deviceId were empty, which is what the fallback logic now surfaces instead of discarding."
+    },
+    {
+      "panel_name": "setup-devicedetail-sample",
+      "root_cause": "An attempt to also query AADNonInteractiveUserSignInLogs (to catch managed-device silent/WAM sign-ins that SigninLogs alone does not capture) broke query binding entirely: 'project operator: Failed to resolve scalar expression named DeviceDetail'. This occurred in two different union syntax forms (per-branch extend, and union withsource=), so the defect is with combining that specific table into a union alongside a real table in this workspace, not with the union isfuzzy=true guard pattern itself.",
+      "fix_applied": "Reverted to querying SigninLogs alone (the pattern already confirmed working in this workspace before AADNonInteractiveUserSignInLogs was added). AADNonInteractiveUserSignInLogs is no longer combined with any real table in a union anywhere in the workbook; it remains queried on its own, in isolation, as a standalone diagnostic (Step 3g).",
+      "metric_definition_changed": false,
+      "verified_against_workspace": true,
+      "verification_method": "The binding failure was directly observed twice by the user, in both attempted syntax forms. Step 3g independently confirmed AADNonInteractiveUserSignInLogs returns 0 rows in this workspace, i.e. it is not ingested, so removing it from the combined query does not remove any real data from the tab's readings. The reverted, SigninLogs-only form of this panel has not yet been re-confirmed live after the revert."
+    },
+    {
+      "panel_name": "risk-tile-unregistered-pct, risk-signin-table, setup-devicedetail-sample",
+      "root_cause": "All three used a shared SIGNINLOGS_UNION constant that, for a period, included AADNonInteractiveUserSignInLogs alongside SigninLogs. Since setup-devicedetail-sample's identical union pattern was confirmed broken (see above), risk-tile-unregistered-pct and risk-signin-table were very likely broken the same way, sharing the same constant, even though no error screenshot was captured for those two specific panels.",
+      "fix_applied": "Removed AADNonInteractiveUserSignInLogs from the shared SIGNINLOGS_UNION constant, restoring it to SigninLogs plus the schema-matched fallback datatable only.",
+      "metric_definition_changed": false,
+      "verified_against_workspace": false,
+      "verification_method": "Unverified for these two specific panels; inferred from the confirmed break in setup-devicedetail-sample, which shares the exact same SIGNINLOGS_UNION constant these two panels are built on."
+    },
+    {
+      "panel_name": "exec-tile-open-investigations, exec-tile-status, setup-incident-status, and the INCIDENTS_BASE constant (shared by investigations-tile-opened, investigations-tile-closed, investigations-tile-open-now, investigations-tile-exceptions, investigations-detail)",
+      "root_cause": "Structural duplicate of the confirmed DeviceInfo defect: `union isfuzzy=true SecurityIncident` filtered only by Title, then summarize arg_max(LastModifiedTime, *) by IncidentNumber (or dcount/max), with no time bound at all before the aggregation. This is the same shape (unbounded union plus full aggregation) that caused a live, confirmed throttle failure on risk-tile-unmanaged-pct. No error has been reported for these specific panels.",
+      "fix_applied": "Added `| where TimeGenerated > ago(395d)` after the Title filter and before the aggregation, in all four distinct locations (the inline duplicates and the shared constant). 395 days was chosen because it exceeds the widest Time Range option a user can actually select in this workbook's UI (365 days), so no incident a user can bring into view is excluded by this bound. Documented the bound and its rationale in the Setup & Validation tab's Notes section.",
+      "metric_definition_changed": false,
+      "verified_against_workspace": false,
+      "verification_method": "Unverified; no live error was reported for these specific panels. Applied preventatively based on structural identity with the confirmed DeviceInfo throttling defect, per the explicit instruction to check the rest of the workbook for the same category of defect."
+    }
+  ],
+  "audit_readiness_notes": "This workbook is the reporting and investigation view for a continuous compliance control that monitors a defined watchlist of AFRL-funded project personnel for access to Anthropic-hosted services, using Microsoft Sentinel and Microsoft Defender telemetry, alongside secondary context on which non-Anthropic AI platforms were actually used and how well the monitored population's devices are covered by University management. The compliance-critical scope, the exact Anthropic domain list, the watchlist name, and the exact analytics-rule incident title were left untouched in this pass, as instructed, and remain fixed by design so the control's boundaries cannot silently drift. The changes made here fall into two categories: correctness fixes to the Unmanaged Device Risk tab, where two device-management signals (isManaged/isCompliant) were found, via a live raw-data sample from this workspace, to read false for every sign-in regardless of a device's real status, and were replaced with a more reliable signal (TrustType) with the change in what 'managed' means stated explicitly above; and performance hardening, where an unbounded full-table scan pattern that caused a live, confirmed Log Analytics throttle on one panel was found and fixed on that panel and pre-emptively fixed on four structurally identical panels elsewhere in the workbook that had not yet thrown a visible error. Known, documented blind spots that remain by design, not by defect: activity from personal/unmanaged devices and non-University networks cannot be fully monitored; Anthropic API calls made server-side by a third-party product are invisible to this control; and in this specific tenant, macOS browser sign-ins (Safari, Firefox) do not carry Entra device-trust claims even from a genuinely managed device, so the Entra-based readings on the risk tab should be read alongside the MDE-based tile rather than in isolation. Not every fix in this pass has been re-confirmed against a live Sentinel run after being applied; each finding above states plainly whether it was verified against this workspace's real behavior or applied on the strength of code-level pattern matching, and none of the unverified findings were left undocumented."
+}

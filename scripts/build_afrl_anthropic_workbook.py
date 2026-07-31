@@ -291,6 +291,7 @@ items.append(kql_item(
     "Open Investigations",
     "union isfuzzy=true SecurityIncident\n"
     f'| where Title == "{RULE_TITLE}"\n'
+    "| where TimeGenerated > ago(395d)\n"
     "| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n"
     '| where Status !in ("Closed", "Resolved")\n'
     "| summarize ['Open Investigations'] = dcount(IncidentNumber)",
@@ -314,6 +315,7 @@ items.append(kql_item(
     "let OpenInvestigations = toscalar(\n"
     "    union isfuzzy=true SecurityIncident\n"
     f'    | where Title == "{RULE_TITLE}"\n'
+    "    | where TimeGenerated > ago(395d)\n"
     "    | summarize arg_max(LastModifiedTime, *) by IncidentNumber\n"
     '    | where Status !in ("Closed", "Resolved")\n'
     "    | summarize coalesce(dcount(IncidentNumber), 0));\n"
@@ -576,6 +578,7 @@ items.append(md_item(
 INCIDENTS_BASE = (
     "union isfuzzy=true SecurityIncident\n"
     f'| where Title == "{RULE_TITLE}"\n'
+    "| where TimeGenerated > ago(395d)\n"
     "| summarize arg_max(LastModifiedTime, *) by IncidentNumber\n"
 )
 
@@ -838,6 +841,7 @@ items.append(kql_item(
     "Step 3c: SecurityIncident Rule Match Check",
     "union isfuzzy=true SecurityIncident\n"
     f'| where Title == "{RULE_TITLE}"\n'
+    "| where TimeGenerated > ago(395d)\n"
     "| summarize TotalIncidents = dcount(IncidentNumber), LatestRecord = max(TimeGenerated)",
     "table", tab="setup", custom_width=50,
 ))
@@ -926,7 +930,12 @@ items.append(md_item(
     "workbook was built.\n\n"
     "**Compliance exceptions** are tracked as a Sentinel incident label (`ComplianceException`) "
     "rather than a separate table; apply it when closing an incident that was reviewed and "
-    "accepted as expected/approved activity.",
+    "accepted as expected/approved activity.\n\n"
+    "**`SecurityIncident` queries are bounded to the last 395 days** before aggregating, to avoid "
+    "an unbounded full-table scan (the same class of defect that throttled the DeviceInfo lookup "
+    "on the Unmanaged Device Risk tab; see git history). 395 days exceeds the widest selectable "
+    "Time Range option (365 days), so no incident a user can actually select into view is excluded "
+    "by this bound.",
     "setup",
 ))
 
